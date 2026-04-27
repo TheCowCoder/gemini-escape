@@ -6,18 +6,29 @@ interface PlayerAvatarProps {
 }
 
 export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ player }) => {
-  // Helper to get color of equipped item
-  const getEquippedColor = (slot: keyof Player['equipped'], defaultColor: string) => {
-    const itemId = player.equipped[slot];
+  const equippedBySlot = player.equipped as Record<string, string | undefined>;
+  const slottedItems = player.inventory.filter((item) => typeof item.slot === 'string' && item.slot !== 'none');
+
+  const getEquippedColor = (slots: string[], defaultColor: string) => {
+    const itemId = slots.map((slot) => equippedBySlot[slot]).find(Boolean);
     if (!itemId) return defaultColor;
-    const item = player.inventory.find(i => i.id === itemId);
+    const item = player.inventory.find((inventoryItem) => inventoryItem.id === itemId);
     return item ? item.color : defaultColor;
   };
 
-  const headColor = getEquippedColor('head', '#fca5a5'); // default skin tone
-  const bodyColor = getEquippedColor('body', '#d1d5db'); // default shirt
-  const handsColor = getEquippedColor('hands', '#fca5a5'); // default skin tone
-  const feetColor = getEquippedColor('feet', '#9ca3af'); // default pants/feet
+  const getEquippedLabel = (slots: string[], emptyLabel: string) => {
+    const itemId = slots.map((slot) => equippedBySlot[slot]).find(Boolean);
+    if (!itemId) return emptyLabel;
+    const item = player.inventory.find((inventoryItem) => inventoryItem.id === itemId);
+    return item ? item.name : emptyLabel;
+  };
+
+  const formatSlotLabel = (slot: string) => slot.replace(/-/g, ' ');
+
+  const headColor = getEquippedColor(['head'], '#fca5a5');
+  const bodyColor = getEquippedColor(['body'], '#d1d5db');
+  const handsColor = getEquippedColor(['hands', 'right-hand'], '#fca5a5');
+  const feetColor = getEquippedColor(['feet'], '#9ca3af');
 
   return (
     <div className="flex flex-col items-center justify-center p-2">
@@ -32,7 +43,7 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ player }) => {
         <div 
           className="w-10 h-10 rounded-sm shadow-sm z-10 transition-colors duration-300 border border-black/20" 
           style={{ backgroundColor: headColor }}
-          title={player.equipped.head ? `Head: ${player.inventory.find(i=>i.id === player.equipped.head)?.name}` : 'Head: Bare'}
+          title={`Head: ${getEquippedLabel(['head'], 'Bare')}`}
         />
         
         {/* Torso & Arms */}
@@ -46,13 +57,13 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ player }) => {
           <div 
             className="w-14 h-14 rounded-sm shadow-sm mx-1 transition-colors duration-300 border border-black/20" 
             style={{ backgroundColor: bodyColor }}
-            title={player.equipped.body ? `Body: ${player.inventory.find(i=>i.id === player.equipped.body)?.name}` : 'Body: Bare'}
+            title={`Body: ${getEquippedLabel(['body'], 'Bare')}`}
           />
           {/* Right Arm */}
           <div 
             className="w-4 h-12 rounded-sm shadow-sm transition-colors duration-300 border border-black/20" 
             style={{ backgroundColor: handsColor }}
-            title={player.equipped.hands ? `Hands: ${player.inventory.find(i=>i.id === player.equipped.hands)?.name}` : 'Hands: Bare'}
+            title={`Hands: ${getEquippedLabel(['hands', 'right-hand'], 'Bare')}`}
           />
         </div>
         
@@ -65,9 +76,24 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ player }) => {
           <div 
             className="w-6 h-12 rounded-sm shadow-sm transition-colors duration-300 border border-black/20" 
             style={{ backgroundColor: feetColor }}
-            title={player.equipped.feet ? `Feet: ${player.inventory.find(i=>i.id === player.equipped.feet)?.name}` : 'Feet: Bare'}
+            title={`Feet: ${getEquippedLabel(['feet'], 'Bare')}`}
           />
         </div>
+
+        {slottedItems.length > 0 && (
+          <div className="mt-2 flex max-w-[9rem] flex-wrap justify-center gap-1.5">
+            {slottedItems.map((item) => (
+              <div
+                key={item.id}
+                className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/75 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-700 shadow-sm"
+                title={`${formatSlotLabel(item.slot)}: ${item.name}`}
+              >
+                <span>{item.emoji}</span>
+                <span>{formatSlotLabel(item.slot)}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Status Indicator */}
         {player.isLockedIn && (

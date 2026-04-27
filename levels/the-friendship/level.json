@@ -1,0 +1,74 @@
+{
+  "id": "the-friendship",
+  "title": "The Friendship",
+  "startingText": "starting-text.md",
+  "levelDescription": "levelDescription.md",
+  "levelGoal": "Build a flying vessel capable of delivering the King's treaty to the Kingdom of Zephyr, and successfully receive their reply. Then relocate the abandoned schoolhouse. Finally, build a lighting system for houses and the village paths and streets.",
+  "npcDefinitions": {
+    "King Alaric": "npcs/king-alaric.md",
+    "Queen Seraphina": "npcs/queen-seraphina.md",
+    "Tink the Alchemist": "npcs/tink.md",
+    "Foreman Barnaby": "npcs/barnaby.md",
+    "Little Pip": "npcs/pip.md",
+    "Silas the Banker": "npcs/silas.md",
+    "Madam Vespera": "npcs/madam-vespera.md",
+    "Ignis the Glassblower": "npcs/ignis.md"
+  },
+  "startingInventory": [
+    {
+      "id": "superfavor-jewel",
+      "name": "SuperFavor Jewel",
+      "emoji": "💎",
+      "description": "A radiant, multi-faceted gem of immense political power.",
+      "descriptionMd": "A **SuperFavor Jewel**. Emits a faint, warm glow. Presenting this to any royal official guarantees one massive favor, no questions asked. Use it wisely.",
+      "semanticNotes": "Magical, extremely valuable, persuasive.",
+      "color": "#E0B0FF",
+      "slot": "pouch",
+      "tags": ["quest-item", "currency", "rare"]
+    },
+    {
+      "id": "gold-coins",
+      "name": "25 Gold Coins",
+      "emoji": "🪙",
+      "description": "Heavy, pure gold currency.",
+      "descriptionMd": "A velvet pouch clinking with **25 Gold Coins**. Highly valued by merchants and royalty for large-scale purchases.",
+      "semanticNotes": "Currency, heavy, metallic.",
+      "color": "#FFD700",
+      "slot": "pouch",
+      "tags": ["currency", "wealth", "gold"]
+    },
+    {
+      "id": "silver-coins",
+      "name": "15 Silver Coins",
+      "emoji": "💿",
+      "description": "Standard silver currency.",
+      "descriptionMd": "**15 Silver Coins**. Perfect for hiring skilled labor or buying specialized tools.",
+      "semanticNotes": "Currency, metallic.",
+      "color": "#C0C0C0",
+      "slot": "pouch",
+      "tags": ["currency", "wealth", "silver"]
+    },
+    {
+      "id": "copper-bits",
+      "name": "600 Copper Bits",
+      "emoji": "🟤",
+      "description": "Small change for everyday village trades.",
+      "descriptionMd": "A heavy sack containing **600 Copper Bits**. Essential for bribing children, buying small scraps, or tipping the tavern keep.",
+      "semanticNotes": "Currency, abundant, heavy.",
+      "color": "#B87333",
+      "slot": "bag",
+      "tags": ["currency", "wealth", "copper"]
+    },
+    {
+      "id": "brass-calipers",
+      "name": "Precision Brass Calipers",
+      "emoji": "📏",
+      "description": "High-quality engineering calipers.",
+      "descriptionMd": "A set of **Precision Brass Calipers**. Essential for taking exact measurements of gears, blueprints, and materials to ensure physical inventions fit perfectly.",
+      "semanticNotes": "Tool, measurement, engineering, precise.",
+      "color": "#B5A642",
+      "slot": "belt",
+      "tags": ["tool", "engineering", "utility"]
+    }
+  ]
+}

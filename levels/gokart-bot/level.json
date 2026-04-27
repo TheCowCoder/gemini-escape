@@ -1,0 +1,45 @@
+{
+  "id": "gokart-bot",
+  "title": "VS A BOT, IN A GOKART RACE!",
+  "startingText": "starting-text.md",
+  "levelDescription": "levelDescription.md",
+  "levelGoal": "Build a Go-kart that will beat the bot in a track of curves, straightaways, and surprises.",
+  "npcDefinitions": {
+    "The Bot": "npcs/the-bot.md"
+  },
+  "startingInventory": [
+    {
+      "id": "haptic-overalls",
+      "name": "Engineer's Haptic Overalls",
+      "emoji": "🦺",
+      "description": "Reinforced workwear with integrated sensors.",
+      "descriptionMd": "Rugged **Haptic Overalls** designed for the modern garage. They feature reinforced knees and a linked sensor suite for precise tool handling.",
+      "semanticNotes": "Wearable, protective, tech-integrated.",
+      "color": "#2F4F4F",
+      "slot": "body",
+      "tags": ["2026-standard", "wearable", "industrial"]
+    },
+    {
+      "id": "neural-link-visor",
+      "name": "HUD Fabrication Visor",
+      "emoji": "🥽",
+      "description": "AR visor for blueprint visualization.",
+      "descriptionMd": "An **AR Visor** that highlights stress points in your build and tracks the bot's progress in the far room.",
+      "semanticNotes": "Headwear, electronic, augmented reality.",
+      "color": "#00FFFF",
+      "slot": "head",
+      "tags": ["2026-standard", "vision", "tech"]
+    },
+    {
+      "id": "omni-wrench",
+      "name": "Smart-Torque Omni-Wrench",
+      "emoji": "🔧",
+      "description": "A tool that adjusts to any bolt size.",
+      "descriptionMd": "A **Smart-Torque Omni-Wrench** that automatically adjusts its grip and logs every adjustment to your local terminal.",
+      "semanticNotes": "Tool, interactive, metallic.",
+      "color": "#C0C0C0",
+      "slot": "right-hand",
+      "tags": ["starter", "tool", "essential"]
+    }
+  ]
+}

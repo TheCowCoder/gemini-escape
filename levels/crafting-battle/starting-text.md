@@ -1,0 +1,1 @@
+You stand before the iron-banded doors of a great battle hall. The crowd inside is already restless. A chalk board on the wall beside the door names your first opponent. Somewhere behind you is a room full of tools, materials, and junk.

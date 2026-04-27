@@ -1,0 +1,1 @@
+The player is in a flat grassy lightly packed forest with friendly wildlife. The air is mild, the ground is forgiving, and the nearby space is open enough for experiments, inventions, vehicles, traps, absurd contraptions, and chaotic prompts.

@@ -1,0 +1,48 @@
+{
+  "id": "the-chasm",
+  "title": "The Chasm",
+  "startingText": "starting-text.md",
+  "levelDescription": "levelDescription.md",
+  "levelGoal": "Cross the chasm, reach the far side, and enter the hidden trapdoor at the bottom of a chilled lake located there.",
+  "npcDefinitions": {
+    "The Man": "npcs/the-man.md",
+    "The Sprite": "npcs/sprite.md"
+  },
+  "startingInventory": [
+    {
+      "id": "sandals",
+      "name": "Worn Sandals",
+      "emoji": "🥾",
+      "description": "Basic footwear.",
+      "descriptionMd": "Basic **worn sandals** that protect your feet from splinters and sharp rock.",
+      "semanticNotes": "Wearable, light, scuffed.",
+      "color": "#8B4513",
+      "slot": "feet",
+      "tags": ["starter", "wearable"]
+    },
+    {
+      "id": "burlap-sack",
+      "name": "Burlap Sack",
+      "emoji": "🎒",
+      "description": "A rough sack.",
+      "descriptionMd": "A rough **burlap sack**.",
+      "semanticNotes": "Container, brown, rough.",
+      "color": "#8B4513",
+      "slot": "none",
+      "maxSlots": 5,
+      "contents": [],
+      "tags": ["starter", "container"]
+    },
+    {
+      "id": "tunic",
+      "name": "Linen Tunic",
+      "emoji": "🧥",
+      "description": "A simple shirt.",
+      "descriptionMd": "A plain **linen tunic** with torn sleeves and plenty of dust.",
+      "semanticNotes": "Wearable cloth, plain, easily torn.",
+      "color": "#D2B48C",
+      "slot": "body",
+      "tags": ["starter", "wearable"]
+    }
+  ]
+}

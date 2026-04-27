@@ -1,0 +1,135 @@
+plan_id: research_01
+objective: Determine how to track progress on 'Nano Banana 2' image generation.
+focus_area: nano_banana_image_generation
+created_at: '2026-04-25'
+created_by: GitHub Copilot
+status: completed
+
+tldr: |
+  - 'Nano Banana 2' is the internal name for the `gemini-3.1-flash-image-preview` model.
+  - Progress can be tracked via the 'Thinking Process' using the `generateContentStream` API.
+  - The model generates incremental 'thoughts' (text) and up to two 'interim images' during the thinking phase.
+  - These interim images serve as 'intermediate steps' before the final image is produced.
+  - Current implementation in `src/services/visualizer.ts` uses the non-streaming `generateContent` API and does not yet capture interim images.
+
+research_metadata:
+  methodology: |
+    Hybrid retrieval using `grep_search` to identify 'Nano Banana 2' in the codebase, followed by `fetch_webpage` 
+    to query official Gemini API documentation. Analyzed SDK usage in `src/services/visualizer.ts` and 
+    `test-imagen.ts`.
+  scope: 'Exploration of Gemini 3.1 Flash Image Preview (Nano Banana 2) API capabilities for progress tracking.'
+  confidence: high
+  coverage: 1.0
+  decision_blockers: 0
+  research_blockers: 0
+
+files_analyzed:
+- file: src/services/visualizer.ts
+  path: /Users/ianbhatt/Desktop/Projects/gemini-escape/src/services/visualizer.ts
+  purpose: Handles image generation using Gemini models.
+  key_elements:
+  - element: generateSceneImage
+    type: function
+    location: 'src/services/visualizer.ts:14'
+    description: Generates a scene image using `gemini-3.1-flash-image-preview`.
+  language: typescript
+  lines: 55
+- file: src/services/engine.ts
+  path: /Users/ianbhatt/Desktop/Projects/gemini-escape/src/services/engine.ts
+  purpose: Core game engine logic and state management.
+  key_elements:
+  - element: gameStateSchema
+    type: variable
+    location: 'src/services/engine.ts:50'
+    description: Mentions 'Nano Banana 2' in the `cinematicImagePrompt` description.
+  language: typescript
+  lines: 500
+- file: test-imagen.ts
+  path: /Users/ianbhatt/Desktop/Projects/gemini-escape/test-imagen.ts
+  purpose: Test script for Imagen model generation.
+  key_elements:
+  - element: run
+    type: function
+    location: 'test-imagen.ts:10'
+    description: Uses `imagen-3.0-generate-002` via `ai.models.generateImages`.
+  language: typescript
+  lines: 23
+
+patterns_found:
+- category: architecture
+  pattern: Thinking Process for Image Generation
+  description: Gemini 3.x models use a reasoning phase before generating images, allowing for streamed progress.
+  examples:
+  - file: src/services/visualizer.ts
+    location: 'line 23'
+    snippet: |
+      thinkingConfig: {
+        thinkingLevel: 'minimal',
+        includeThoughts: true,
+      }
+  prevalence: common
+- category: naming
+  pattern: Nano Banana Naming Convention
+  description: The project uses 'Nano Banana' as a colloquial or internal name for Gemini Image models.
+  examples:
+  - file: src/services/visualizer.ts
+    location: 'line 6'
+    snippet: '// Nano Banana 2 preview on Vertex AI requires the global location to function natively'
+  prevalence: common
+
+related_architecture:
+  components_relevant_to_domain:
+  - component: Visualizer Service
+    responsibility: Encapsulates calls to Google GenAI for image generation.
+    location: src/services/visualizer.ts
+    relationship_to_domain: Core component for 'Nano Banana 2' usage.
+  - component: Game Engine
+    responsibility: Generates prompts for the visualizer.
+    location: src/services/engine.ts
+    relationship_to_domain: Inbound dependency; provides the prompts that trigger generation.
+  interfaces_used_by_domain:
+  - interface: TurnProgress
+    location: src/types/index.ts
+    usage_pattern: Used to communicate model thinking state to the UI.
+  data_flow_involving_domain: |
+    Engine (Prompt) -> Visualizer (Gemini API) -> UI (Image + Thought Length).
+
+related_technology_stack:
+  languages_used_in_domain:
+  - TypeScript
+  frameworks_used_in_domain:
+  - name: Node.js
+    usage_in_domain: Server-side execution environment.
+  libraries_used_in_domain:
+  - name: '@google/genai'
+    purpose_in_domain: Official Google SDK for interacting with Gemini and Nano Banana models. (v1.29.1)
+  external_apis_used_in_domain:
+  - name: Gemini API / Vertex AI
+    integration_point: Used for multimodal content generation (text-to-image).
+
+related_conventions:
+  naming_patterns_in_domain: Models are referred to by both their official names and 'Nano Banana' aliases.
+  structure_of_domain: Services are organized under `src/services/`.
+  error_handling_in_domain: Uses try-catch blocks with logging.
+  testing_in_domain: Standalone scripts like `test-imagen.ts` are used for isolated API testing.
+
+related_dependencies:
+  internal:
+  - component: types
+    relationship_to_domain: Provides shared interfaces for messages and progress.
+    direction: inbound
+  external:
+  - name: '@google/genai'
+    purpose_for_domain: Provides the `generateContent` and `generateContentStream` methods.
+
+open_questions:
+- question: Does the @google/genai JS SDK fully support part.as_image() for thought parts?
+  context: Documentation shows Python examples; JS SDK types might lag (as noted in visualizer.ts).
+  type: research
+  affects: []
+
+gaps:
+- area: Progress Streaming
+  description: The current implementation does not use streaming for image generation, missing out on real-time thought/interim image updates.
+  impact: nice_to_know
+  affects: []

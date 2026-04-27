@@ -1,0 +1,31 @@
+{
+  "id": "crafting-battle",
+  "title": "The Crafting Battle",
+  "startingText": "starting-text.md",
+  "levelDescription": "levelDescription.md",
+  "levelGoal": "Use creativity and crafted inventions to survive the escalating arena encounters, win the king's favor, and reach the transition to the next level.",
+  "startingInventory": [
+    {
+      "id": "sandals",
+      "name": "Worn Sandals",
+      "emoji": "🥾",
+      "description": "Basic footwear.",
+      "descriptionMd": "Basic **worn sandals** that protect your feet from splinters and sharp rock.",
+      "semanticNotes": "Wearable, light, scuffed.",
+      "color": "#8B4513",
+      "slot": "feet",
+      "tags": ["starter", "wearable"]
+    },
+    {
+      "id": "tunic",
+      "name": "Linen Tunic",
+      "emoji": "🧥",
+      "description": "A simple shirt.",
+      "descriptionMd": "A plain **linen tunic** with torn sleeves and plenty of dust.",
+      "semanticNotes": "Wearable cloth, plain, easily torn.",
+      "color": "#D2B48C",
+      "slot": "body",
+      "tags": ["starter", "wearable"]
+    }
+  ]
+}

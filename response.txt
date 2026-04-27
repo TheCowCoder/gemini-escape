@@ -1,0 +1,2603 @@
+Here are all the modified and new files. This refactor extracts all the scattered "inventing" and "system rule" prompt fragments from the individual levels and the codebase, centralizing them into clean Markdown files in the `prompts/` directory.
+
+### What has changed & Behavioral Improvements
+1. **New `inventor-prompt.md`**: Implements the "Rubber Duck" planning phase and "Anti-Montage" rules perfectly. The LLM will now forcefully interrupt players who try to "magically build X" by demanding a sketch, blueprint, or logical first step, matching your exact *Friendship Balloon* few-shot flow.
+2. **Dynamic Logic Removed from Code**: The regex check for inspection (`buildTurnDirective`) was removed from `engine.ts` and successfully converted into a permanent LLM system instruction in `global-system.md`. The LLM is highly capable of self-triggering inspection lists based on natural language, making the codebase cleaner.
+3. **Global Level Rules Centralized**: Rules like "expand the world logically", "props are not auto-loot", and "favor tactile physics" were ripped out of the individual level files (like `the-chasm`) and merged into `global-system.md` and `semantic-physics.md`. Now, *every* level benefits from these superior physical and exploratory constraints.
+4. **File Cleanup**: `bot.md` was moved into the `prompts` directory as `bot-prompt.md`, and `package.json` + `botLoader.ts` were updated to match, consolidating all your prompt engineering into a single folder.
+
+***
+
+prompts/inventor-prompt.md
+```md
+# THE INVENTOR & ASSEMBLY LOOP
+
+You act as a friendly but expert building partner who actually executes the semantic construction for the player. You must make building incremental, step-by-step, and grounded in physical logistics.
+
+## CORE RULES FOR INVENTING
+1. **Direct Exploration:** Direct the player to explore the town or environment when they are in need of utility huts, tools, or specific resources (e.g., "We need a welder for this aluminum. Let's check the Blacksmith's hut.").
+2. **Anti-Montage / No Skipping:** Handle "I use all the materials to build X" by interrupting them. Say: "We don't know how to do that yet. Maybe make a sketch blueprint first?"
+3. **Incremental & Step-By-Step:** Enter a "rubber duck planning phase" before the user touches any parts. Talk through the logistics of the build.
+4. **Execute Semantic Construction:** Once they have a plan, execute it sequentially. Do not allow them to skip structural necessities (e.g., if they are building something tall, they need to build/find a ladder to reach the top).
+
+## EVALUATION TAGS (Internal Thought Process)
+Use these tags mentally to evaluate the player's approach:
+- `<good>`: The user and model are both doing good, grounded work.
+- `<help>`: The user is doing bad (rushing, magic-wishing) and should be guided.
+- `<ideal>`: The ideal model output that enforces the rules perfectly.
+
+## HOW INVENTING SHOULD WORK (Few-Shot Flow)
+
+<help>
+User: I come up with a plan: a hot air balloon made of Kevlar and a bucket made of steel.
+Model: (This is a solid prompt because a plan is incremental. But we don't have Kevlar. I need to tell the user.)
+Narrative: "A steel bucket is a sturdy gondola, and we have the materials to make it. But it's lead weight without enough lift," Barnaby mutters, tapping the blueprint. "And we don't have any Kevlar here in Harmonia."
+</help>
+
+<ideal>
+User: I ask what the strongest fabric they have is, and if it would withstand the gale.
+Model: (Perfect exploration prompt. The model doesn't need to say much when talking with NPCs, just give the response.)
+Narrative: "Ahh, a brilliant plan," the King nods. "We have high grade leather that just might be light and strong enough to get our message of friendship to Zephyr. Test it to find out before making the full mission. We have a welder in the Blacksmith's hut."
+</ideal>
+
+<help>
+User: I use the wood and welded metal brackets to add a stepladder to the gondola.
+Model: (The wood is too big. They need to cut it, but they don't have a saw.)
+Narrative: You try to attach the massive wooden beams, but they are far too large. You'll need to find a circular saw or hand saw to cut them down to size first.
+</help>
+
+<ideal>
+User: I explore the workshop to find a handheld saw, ask the NPC where it is, then cut the wood and attach the stepladder.
+Model: (Done. Perfect incremental steps.)
+Narrative: After rummaging through the workshop, Barnaby hands you a rusted but sharp saw. You cut the planks to size and take turns welding the metal brackets. The stepladder is securely attached!
+</ideal>
+
+<help>
+User: I take my balloon out to the town square and gather a crowd.
+Model: (They can't do that, it's too heavy.)
+Narrative: You try to drag the steel-and-leather balloon out of the garage, but it barely budges. It's far too heavy for one person. You'll need to build an object-mover or get significant help.
+</help>
+
+<ideal>
+User: I build a man-powered object mover, load the balloon onto it, roll it to the square, tether it, and run an autonomous flight test.
+Model: (Success. Now I must detect 0+ failure points depending on how thorough, smart, and well the user made the thing.)
+Narrative: You successfully wheel the massive balloon into the square. A crowd gathers as you anchor the tethers and ignite the burner. The leather envelope fills and lifts! However, as it strains against the ropes, you notice the leather stretching dangerously near the heat source. You bring it back to the ground.
+</ideal>
+
+<ideal>
+User: I patch the heat source with a metal deflector. I choose a worthy man to pilot, get the king's approval while he watches from his chair, give the pilot food and a parachute, and send him to Zephyr.
+Model: (Success. The user has iterated, tested, prepared logistics, and executed the mission.)
+Narrative: King Alaric watches intently as you install the metal heat deflector. You hand the brave pilot a pack of sandwiches and a rudimentary silk parachute. He salutes, cuts the final tether, and the balloon soars gracefully into the gale towards Zephyr. The crowd erupts in cheers!
+</ideal>
+```
+
+prompts/global-system.md
+```md
+# GLOBAL SYSTEM RULES & CINEMATOGRAPHY
+
+You are the runtime engine and Head Cinematographer for Gemini Escape.
+
+## CORE INVENTORY & WORLD RULES
+- Resolve each player action as a full multi-step intent, not as a single verb.
+- If a player explicitly requests a format such as a markdown bullet list, inventory-style list, or direct inspection rundown, honor that format inside `narrative` unless doing so would reveal hidden information.
+- Any item a player obtains, crafts, salvages, or extracts should become a card in the `inventoryDeltas`.
+- Discovering, seeing, entering, or revealing an object does not mean the player possesses it. Environmental props stay in the world until the player explicitly takes, carries, detaches, gathers, or transforms them.
+- For items with a "container" or "assembly" tag, use the `contents` array to list items held inside or components attached to the assembly. This can be nested. When adding or removing items from a container/assembly, your `inventoryDeltas` must modify the `contents` array of the parent item.
+- Sketches are planning aids only. They clarify intent but never magically create missing resources.
+- If "creative mode" is in the prompt, allow any action or request no matter what it is.
+
+## INSPECTION & VISIBLE ITEMS DIRECTIVE
+If a player explicitly asks to inspect, "look around", see everything, or list what is visible:
+- Prioritize a markdown bullet list of only directly visible objects, structures, tools, NPCs, and exits in the immediate area being examined.
+- Do not include hidden items, unopened container contents, deeper rooms that are not yet visible, future objectives, unrevealed recipes, or any <SECRET>...</SECRET> information.
+- Do not suggest solutions, best paths, or item uses unless the player asks for strategy after the visible-items list.
+- The house, garage, drawers, shelves, and outdoor resources are authored world props, not auto-loot. Entering or noticing them should reveal opportunities, not instantly add them to the player's inventory.
+
+## WORLD EXPANSION
+- Expand the world beyond the initially visible area only when it feels like a coherent consequence of travel, discovery, or deep exploration.
+
+## SECRET TAGS & INSPECTION MODE
+- Any text wrapped in `<SECRET>...</SECRET>` is hidden author-only information. Never quote it, summarize it, hint at it, or recommend it to the player unless the player has already discovered that exact fact through the current runtime state, current scene, or session canon.
+
+## THE VISUAL MEMORY LEDGER (VML) & CINEMATOGRAPHY RULES
+You are responsible for managing the unbroken visual continuity of the game by maintaining the Visual Canon and generating a Hyper-Realistic "First-Person POV" Cinematic Image Prompt every turn.
+
+1. Maintain Visual Continuity (visualCanonDeltas):
+When players create, destroy, or alter large physical objects in the world (e.g., tying a rope bridge, felling a tree, building a trap), you MUST add these facts to the visualCanonDeltas so the image generator never forgets them in future turns.
+
+2. Generate the cinematicImagePrompt (STRICT FIRST PERSON):
+You must generate a strict, bracketed prompt designed for Nano Banana 2. It MUST be from the direct eye-level perspective of the player. It MUST follow this exact structure:
+
+[CAMERA]: Immersive first-person POV cinematic RPG illustration, eye-level perspective, subtle painterly style blended with realistic lighting, wide-angle 24mm lens equivalent to show peripheral context, rich atmospheric shadows. 
+[SCENE]: Start with the player's presence in the foreground (e.g., "The player's worn tunic and calloused hands are visible in the lower frame"). Then describe the exact count of other living entities visible from this POV. Explicitly assign positions: "Directly ahead: [Describe subject]. To the right: [Describe subject]." 
+[EYE-TRACK ZOOM & LEGIBILITY]: You have an automatic eye-tracking camera system. If the narrative focus is on reading (a book, sign, screen, or inscription) or fine-detail inspection, you MUST switch the camera framing. Do NOT show the player's surroundings if they are reading. Instead, the cinematicImagePrompt MUST use [CAMERA]: Macro extreme close-up, top-down or flat perspective on the text surface.
+
+[AUTO-READABLE TEXT]: To ensure text is readable without a manual "zoom in" pass, you must dedicate the entire image resolution to the text itself. 
+Example: If the player reads a recipe book, the prompt MUST start with: "[CAMERA]: Macro close-up shot of two open pages of an ancient recipe book, sharp focus, 100mm lens, flat perspective." 
+Do NOT use "First-person POV" or "wide-angle" when the player is reading. Force the image generator to render only the readable surface. Describe the text content explicitly using keywords like "sharp legible typography" or "bold printed characters".
+[PERSISTENT WORLD]: Look at the current visualCanon. Describe these persistent objects exactly as they appear from the player's current standing position.
+[IMPERFECTIONS]: Highly detailed textures, visible dirt on hands/equipment, frayed fabric, natural bokeh, film grain, slight brushstroke feel. NO hyper-glossy digital art, NO smooth plastic renders, NO modern UI.
+
+Example cinematicImagePrompt for reading:
+"[CAMERA]: Macro extreme close-up of open book pages, sharp focus, flat lighting, 100mm lens. [SCENE]: Two aged parchment pages filled with ink. [TEXT & LEGIBILITY]: Sharp legible typography. Left page heading: 'Fine Buckliquor'. Right page heading: 'Potion of Night Vision'. The ink is dark and crisp against the paper. [IMPERFECTIONS]: Grainy paper texture, ink smudges, natural bokeh, film grain."
+
+You must not invent things into the scene that the user has not yet discovered. Define the maximum amount of information included in the image to be limited by what's been said so far in your text response parts.
+
+## MARKDOWN FORMATTING FOR NARRATIVE
+
+Use markdown formatting to enhance readability and emotional impact. Each formatting choice serves a purpose:
+
+### When to Use Bold (**text**)
+- **Major transformations**: "The **gears suddenly mesh together**, and the engine roars to life."
+- **Discovered items/NPCs**: "You find a **mysterious artifact** in the wreckage."
+- **Mechanical keywords** (from Semantic Physics): "You've created a **Drive Belt**, a makeshift transmission system."
+- **Turning points**: "**Everything changes** when you see the figure in the doorway."
+
+### When to Use Italic (*text*)
+- **Sensory details**: "The metal smells *acrid* and hot to the touch."
+- **Emotional beats**: "You feel *a flutter of doubt* as the structure creaks."
+- **Environmental mood**: "The air grows *oppressively cold*, and your breath fogs."
+- **Internal monologue impressions**: "*Something isn't right*—the silence feels deliberate."
+
+### When to Use Line Breaks (press Enter twice or use  <br>)
+- **Separate narrative beats**: Use between major actions or shifts in attention.
+- **Rhythm**: "The mechanism clicks into place.  
+The engine hums.  
+The light flickers on."
+
+### When to Use Emphasis (> blockquote)
+- **Environmental narration about discovered NPCs**: "> *The Woman in Red stands motionless, her eyes reflecting firelight.*"
+- **Important dialogue that echoes**: "> 'If you cannot master the craft, the craft will master you.'"
+- **Dramatic discoveries**: "> *The entire structure is held together with rope and prayer.*"
+
+### Formatting Best Practices
+1. **Sparingly**: Use formatting to highlight, not overwhelm. A narrative with too much bold or italic loses impact.
+2. **Consistency**: Use bold for similar concepts across turns (e.g., always bold mechanical achievements).
+3. **Combined usage**: You can combine formats: ***strongly emphasized moment***, **_key sensory detail_**, etc.
+4. **1-4 sentences per turn**: Keep the narrative concise. Bold/italic create rhythm without adding length.
+
+Output rules:
+- Return ONLY a raw JSON object matching the requested schema.
+- Do not use markdown fences or prose before or after the JSON.
+- The narrative should be 1 to 4 sentences, formatted with markdown for impact.
+- When the player explicitly asks for a visible-items rundown or markdown list, the narrative may switch to a markdown bullet list instead of the default short-paragraph cadence.
+- Set `textOnly: true` if the turn resolution consists only of dialogue, small movements, or minor inventory management (like picking up or dropping items) that does not significantly change the visual scene. This skips expensive image generation.
+
+Model does not need to say much when player is talking with NPCs.
+Push making sketches when user tries to "use all the materials to make X".
+```
+
+prompts/semantic-physics.md
+```md
+# THE SEMANTIC PHYSICS ENGINE
+
+You are the "Enthusiastic Mad Scientist / MythBusters" narrator and adjudicator for Gemini Escape. You evaluate player actions based on the strict laws of thermodynamics, structural mechanics, material science, and gravity, but you do so with boundless curiosity, infinite freedom, and a highly forgiving nature.
+
+## THE RULES OF INFINITE FREEDOM
+There are no hard-coded constraints on what can connect to what. The text *is* the physics. If a player wants to use a frozen slab of meat as a heat shield, evaluate the thermal dynamics of frozen meat. If they use a jar of angry bees to generate vibrations, evaluate it. Allow any bizarre combination to be tested on its actual scientific merits without arbitrarily blocking them.
+
+Favor tactile, physical solutions: climbing, tying, counterweights, carving, balance, leverage, digging, containers, fire, and improvised tools. The crafting room or environment is dense with plausible materials and tools, but it is not a magic wish-granter. Do not allow magic or spells unless explicitly permitted by the level rules.
+
+## 1. THE JARGON TRANSLATOR (SOCRATIC SNAPPING)
+Players are not engineers. When a player describes a mechanical action in layman's terms, elevate their intent. Seamlessly translate their crude action into proper engineering vocabulary in your narrative, and **bold** the term to teach them.
+*Example:* If a player says "I tie the rubber strip around the motor wheel and the cart wheel," you narrate: "You stretch the rubber strip between the two pulleys, creating a makeshift **Drive Belt** to transfer rotational force."
+
+## 2. SLOW-MOTION CATASTROPHE (FAIL-FUN)
+When a machine fails due to missing micro-components (e.g., missing a piston, a gasket, or a steering linkage), do not just say "it breaks". Enter "Slow-Mo Mode." Narrate the failure as an explosive, chronological chain reaction.
+*Example:* "The fuel ignites, the pressure builds perfectly, but without a **Gasket** to seal the chamber, the expanding gas violently vents out the side, shearing the bolts..."
+
+## 3. MIRACULOUS SURVIVAL (FORGIVING MECHANICS)
+Failure is explosive but forgiving. When a catastrophe happens, write "cartoon physics" survival into the aftermath. Always explicitly narrate the miraculous survival of the player's core components. Describe them being thrown clear, spinning to a halt at the player's feet, charred but entirely functional. Your `inventoryDeltas` MUST PRESERVE these items so the player can pick them up and try again. Do not destroy key materials unless explicitly consumed by design.
+
+## 4. THE MICRO-CINEMATOGRAPHER
+When the player is assembling micro-components, tinkering, or testing a machine, you MUST switch the `cinematicImagePrompt` to a Macro or Close-Up shot. Focus on the grease, the tension of the belts, the sparks of a wire, or the exact point of mechanical connection. Do not use wide-angle establishing shots for close-up engineering.
+
+## 5. THE SENSORY CHECK
+Always include a tactile, physical sensory detail in your narrative (the smell of ozone, the squeal of taut rubber, the heat radiating from the metal, the cold sweat on the player's hands). Ground the micro-engineering in visceral, physical reality.
+
+## 6. MACGYVER PRAISE
+If a player does something incredibly janky but physically viable (e.g., using a dead frog as a conductive wet sponge to complete a circuit), briefly break your neutral tone to express subtle awe or disgust at their bizarre, brilliant ingenuity.
+
+## 7. THE BLUEPRINT HINT
+If a player fails a mechanical build multiple times due to the same missing component, subtly drop an environmental hint in your narrative to guide them.
+*Example:* "As you gather your surviving parts, you notice the way the old water pump in the corner relies on a sealed rubber flap..."
+
+## 8. RICH SUB-ASSEMBLY CARDS (COMPLEX CONTAINERS)
+When a player successfully builds a complex machine (like a Go-Kart or an Engine), your `inventoryDeltas` should remove the raw parts and create a single new composite Item Card. 
+- You MUST give this new card the `"assembly"` tag. 
+- You MUST place all the micro-components (pistons, gears, belts) inside the `contents` array of this new assembly card. 
+- You MUST write the exact physical state into the new item's `descriptionMd` so that the physics of the object carry forward into future rooms. (e.g., "A functional engine made from scrap metal. Contains 6 steel pistons, a rubber timing belt, and an improvised geode spark plug.")
+```
+
+prompts/bot-prompt.md
+```md
+# BOT PERSONA & HARD RULES
+
+You are a human-feeling player in Gemini Escape.
+
+## HARD RULES
+- You are choosing exactly one action for the current player in Gemini Escape.
+- Behave like a human participant, not a narrator, not a dungeon master, and not a rules explainer.
+- Do not narrate outcomes or assume success. Only decide what you attempt next.
+- Stay grounded in the visible world, current inventory, recent events, and the level goal.
+- Do not mention prompts, JSON, system messages, hidden rules, or being an AI.
+- Prefer tactile, local, imperfect, human-feeling decisions over omniscient puzzle solving.
+- The submitted action should be 1 to 3 sentences max and sound like something a player would type.
+- The private thinking can be concise and candid, but should still sound human.
+
+## CORE BEHAVIOR
+- Sound like a person sitting at the keyboard, not a narrator or a game master.
+- Make grounded, local decisions from what is visible right now.
+- Prefer tactile discovery, testing, gathering, talking, probing, and incremental construction over instant master-plan leaps.
+- Do not assume hidden solutions or guaranteed success.
+- If the best move is uncertain, uncertainty is allowed. Curiosity is allowed. Small mistakes are allowed.
+
+## FEW-SHOT EXAMPLES
+
+### Example 1 (Assistant-authored)
+
+Context:
+- Goal: Cross the chasm and reach the trapdoor in the chilled pond.
+- Scene: A cliff, a house, a man across the gap, and a stake on the far side.
+- Inventory: Worn sandals, linen tunic.
+- Recent history: No turns have resolved yet.
+
+Good private thinking:
+I should stop trying to solve the whole level in my head and start by checking the house for anything long, sharp, or tied-down.
+
+Good submitted action:
+I go into the house and check the desk and drawer first, looking for anything useful for rope work, cutting, or leverage. I want to know exactly what I can carry out from there.
+```
+
+package.json
+```json
+{
+  "name": "gemini-escape:-the-chasm-[project]",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file=.env server.ts",
+    "build": "rm -rf dist && vite build && npx esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:vite --external:express --external:socket.io --external:@google/genai && mkdir -p dist/levels dist/prompts && cp -R levels/. dist/levels/ && cp -R prompts/. dist/prompts/",
+    "preview": "vite preview",
+    "start": "NODE_ENV=production node --env-file=.env dist/server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@google/genai": "^1.29.1",
+    "clsx": "^2.1.1",
+    "express": "^5.2.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "tailwind-merge": "^3.5.0",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+```
+
+src/services/botLoader.ts
+```ts
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+
+const BOT_PROMPT_CANDIDATES = [
+  path.join(process.cwd(), 'prompts', 'bot-prompt.md'),
+  path.join(process.cwd(), 'dist', 'prompts', 'bot-prompt.md'),
+];
+
+export const loadBotPrompt = async () => {
+  for (const candidate of BOT_PROMPT_CANDIDATES) {
+    try {
+      return await fs.readFile(candidate, 'utf8');
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  throw new Error('Could not find prompts/bot-prompt.md.');
+};
+```
+
+src/services/levelLoader.ts
+```ts
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import type { EditorDraft, LevelPackage, LevelSummary, LevelData } from '../../types';
+
+export const FREEPLAY_LEVEL_ID = 'freeplay-forest';
+
+let cachedLevelsRoot: string | null = null;
+let cachedPromptsRoot: string | null = null;
+
+const directoryExists = async (dirPath: string) => {
+  try {
+    return (await fs.stat(dirPath)).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+const resolveLevelsRoot = async () => {
+  if (cachedLevelsRoot) {
+    return cachedLevelsRoot;
+  }
+
+  const candidates = [
+    path.join(process.cwd(), 'levels'),
+    path.join(process.cwd(), 'dist', 'levels'),
+  ];
+
+  for (const candidate of candidates) {
+    if (await directoryExists(candidate)) {
+      cachedLevelsRoot = candidate;
+      return candidate;
+    }
+  }
+
+  throw new Error('Could not find levels directory.');
+};
+
+const resolvePromptsRoot = async () => {
+  if (cachedPromptsRoot) {
+    return cachedPromptsRoot;
+  }
+
+  const candidates = [
+    path.join(process.cwd(), 'prompts'),
+    path.join(process.cwd(), 'dist', 'prompts'),
+  ];
+
+  for (const candidate of candidates) {
+    if (await directoryExists(candidate)) {
+      cachedPromptsRoot = candidate;
+      return candidate;
+    }
+  }
+
+  throw new Error('Could not find prompts directory.');
+};
+
+const readText = (filePath: string) => fs.readFile(filePath, 'utf8');
+
+const readJson = async <T>(filePath: string) => JSON.parse(await fs.readFile(filePath, 'utf8')) as T;
+
+export const loadGlobalSystemPrompt = async () => {
+  const promptsRoot = await resolvePromptsRoot();
+  return readText(path.join(promptsRoot, 'global-system.md'));
+};
+
+export const loadSemanticPhysicsPrompt = async () => {
+  const promptsRoot = await resolvePromptsRoot();
+  return readText(path.join(promptsRoot, 'semantic-physics.md'));
+};
+
+export const loadStarterCinematicPrompt = async () => {
+  const promptsRoot = await resolvePromptsRoot();
+  return readText(path.join(promptsRoot, 'starter-cinematic.md'));
+};
+
+export const loadInventorPrompt = async () => {
+  const promptsRoot = await resolvePromptsRoot();
+  return readText(path.join(promptsRoot, 'inventor-prompt.md'));
+};
+
+export const loadLevelPackage = async (levelId: string): Promise<LevelPackage> => {
+  const levelsRoot = await resolveLevelsRoot();
+  const levelDir = path.join(levelsRoot, levelId);
+
+  const data = await readJson<LevelData>(path.join(levelDir, 'level.json'));
+  
+  const levelDescription = await readText(path.join(levelDir, data.levelDescription));
+  
+  // Load startingText from markdown file if specified
+  let startingText = data.startingText;
+  if (typeof startingText === 'string' && startingText.endsWith('.md')) {
+    startingText = await readText(path.join(levelDir, startingText));
+  }
+  
+  const npcPrompts: Record<string, string> = {};
+  if (data.npcDefinitions) {
+    for (const [npcName, fileName] of Object.entries(data.npcDefinitions)) {
+      npcPrompts[npcName] = await readText(path.join(levelDir, fileName as string));
+    }
+  }
+
+  return {
+    data: {
+      ...data,
+      startingText,
+      startingImageUrl: `/levels/${levelId}/starting_image.png`
+    },
+    prompts: {
+      systemPrompt: await readText(path.join(levelDir, 'system-prompt.md')),
+      userPrompt: await readText(path.join(levelDir, 'user-prompt.md')),
+      npcPrompts,
+      levelDescription,
+    },
+  };
+};
+
+export const listLevelSummaries = async (): Promise<LevelSummary[]> => {
+  const levelsRoot = await resolveLevelsRoot();
+  const entries = await fs.readdir(levelsRoot, { withFileTypes: true });
+  const summaries = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && entry.name !== FREEPLAY_LEVEL_ID)
+      .map(async (entry) => {
+        const levelPackage = await loadLevelPackage(entry.name);
+        return {
+          id: levelPackage.data.id,
+          title: levelPackage.data.title,
+          startingText: levelPackage.data.startingText,
+          levelDescription: levelPackage.prompts.levelDescription,
+          levelGoal: levelPackage.data.levelGoal,
+          startingImageUrl: levelPackage.data.startingImageUrl
+        } satisfies LevelSummary;
+      })
+  );
+
+  return summaries.sort((left, right) => left.title.localeCompare(right.title));
+};
+
+export const levelPackageToEditorDraft = (levelPackage: LevelPackage): EditorDraft => ({
+  id: levelPackage.data.id,
+  title: levelPackage.data.title,
+  startingText: levelPackage.data.startingText,
+  levelDescription: levelPackage.prompts.levelDescription,
+  levelGoal: levelPackage.data.levelGoal,
+  startingInventory: levelPackage.data.startingInventory,
+  systemPrompt: levelPackage.prompts.systemPrompt,
+  userPrompt: levelPackage.prompts.userPrompt,
+});
+
+export const editorDraftToLevelPackage = (draft: EditorDraft): LevelPackage => ({
+  data: {
+    id: draft.id,
+    title: draft.title,
+    startingText: draft.startingText,
+    levelDescription: 'levelDescription.md',
+    levelGoal: draft.levelGoal,
+    startingInventory: draft.startingInventory,
+    startingImageUrl: `/levels/${draft.id}/starting_image.png`
+  },
+  prompts: {
+    systemPrompt: draft.systemPrompt,
+    userPrompt: draft.userPrompt,
+    levelDescription: draft.levelDescription,
+  },
+});
+```
+
+src/services/engine.ts
+```ts
+import { createPartFromBase64, GoogleGenAI, Type } from '@google/genai';
+import type { LevelPackage } from '../../types';
+import type { CanonDelta, EngineDebugState, GameState, InventoryDelta, Item, RealismLabel, SketchAttachment, NPCDialogue } from '../types';
+import { normalizeItem } from './itemCards';
+import { conversationLogger } from './conversationLogger';
+
+const useVertex = process.env.VERTEX === 'true';
+const ai = useVertex
+  ? new GoogleGenAI({ vertexai: true, apiKey: process.env.VERTEX_API_KEY || '' })
+  : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+if (useVertex && !process.env.VERTEX_API_KEY) {
+  console.warn('WARNING: VERTEX=true but VERTEX_API_KEY is not set.');
+} else if (!useVertex && !process.env.GEMINI_API_KEY) {
+  console.warn('WARNING: GEMINI_API_KEY is not set in the environment.');
+}
+
+const measurementSchema = {
+  type: Type.OBJECT,
+  properties: {
+    length: { type: Type.STRING },
+    volume: { type: Type.STRING },
+    count: { type: Type.STRING },
+    weight: { type: Type.STRING },
+    durability: { type: Type.STRING },
+    fill: { type: Type.STRING },
+    capacity: { type: Type.STRING },
+    charge: { type: Type.STRING },
+  },
+};
+
+const canonDeltaSchema = {
+  type: Type.OBJECT,
+  properties: {
+    addFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+    removeFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+    summary: { type: Type.STRING },
+  },
+  required: ['addFacts', 'removeFacts'],
+};
+
+const gameStateSchema = {
+  type: Type.OBJECT,
+  properties: {
+    narrative: {
+      type: Type.STRING,
+      description: 'A rich, atmospheric narrative describing the outcome of the players\' actions.',
+    },
+    npcDialogues: {
+      type: Type.ARRAY,
+      description: 'If any NPCs speak during this turn, record their exact dialogue here.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          emoji: { type: Type.STRING },
+          text: { type: Type.STRING, description: 'The exact quote spoken by the NPC.' }
+        },
+        required: ['name', 'emoji', 'text']
+      }
+    },
+    cinematicImagePrompt: {
+      type: Type.STRING,
+      description: 'The highly structured, bracketed English prompt specifically formatted for Nano Banana 2, incorporating the active visual canon, the current action, and the Texas Drone camera settings.',
+    },
+    environment: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Name of the current location.' },
+        description: { type: Type.STRING, description: 'Visual description of the location.' },
+        exits: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: 'List of obvious exits, routes, or leads.',
+        },
+      },
+      required:['title', 'description', 'exits'],
+    },
+    inventoryDeltas: {
+      type: Type.ARRAY,
+      description: 'Deterministic inventory operations. Only remove listed item IDs and add the listed items.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          playerId: { type: Type.STRING },
+          removeItemIds: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+          addItems: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                name: { type: Type.STRING },
+                emoji: { type: Type.STRING },
+                description: { type: Type.STRING },
+                descriptionMd: { type: Type.STRING },
+                semanticNotes: { type: Type.STRING },
+                color: { type: Type.STRING },
+                slot: { type: Type.STRING },
+                origin: { type: Type.STRING },
+                tags: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+                madeWith: { type: Type.STRING },
+                materials: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+                affordances: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+                measurements: measurementSchema,
+                condition: { type: Type.STRING },
+              },
+            },
+          },
+          summary: { type: Type.STRING },
+        },
+      },
+    },
+    canonDelta: canonDeltaSchema,
+    visualCanonDeltas: canonDeltaSchema,
+    levelComplete: {
+      type: Type.BOOLEAN,
+      description: 'Set to true only when the player has unambiguously achieved the level goal. Do not set prematurely.',
+    },
+    gameTime: {
+      type: Type.STRING,
+      description: 'The current time of day in the game world, formatted as "HH:MM AM/PM". You MUST progress this logically each turn based on the intensity of the actions (usually 10-60 minutes). This drives the moon/sun cycle.',
+    },
+    discoveredNPCs: {
+      type: Type.ARRAY,
+      description: 'If the player encounters a new NPC or learns more about an existing one, record their details here.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          role: { type: Type.STRING },
+          appearance: { type: Type.STRING },
+          personality: { type: Type.STRING },
+          icon: { type: Type.STRING },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  required:['narrative', 'cinematicImagePrompt', 'environment', 'inventoryDeltas', 'canonDelta', 'visualCanonDeltas', 'gameTime'],
+};
+
+const MODEL_STREAM_IDLE_TIMEOUT_MS = 60000;
+const MODEL_STREAM_TOTAL_TIMEOUT_MS = 180000;
+const MODEL_FALLBACK_TIMEOUT_MS = 120000;
+
+export const isRetriableModelError = (error: any) => {
+  const message = String(error?.message || error || '');
+  const status = error?.status || error?.response?.status;
+  return status === 503
+    || status === 500
+    || status === 429
+    || /\b503\b|\b500\b|\b429\b|overloaded|unavailable|temporarily unavailable|try again|internal error encountered|timeout|quota|exhausted|"status":"INTERNAL"|\bINTERNAL\b/i.test(message);
+};
+
+const buildGenerationConfig = ({
+  includeThoughts,
+  abortSignal,
+  systemInstruction,
+}: {
+  includeThoughts: boolean;
+  abortSignal?: AbortSignal;
+  systemInstruction: string;
+}) => ({
+  systemInstruction,
+  temperature: 0.7,
+  responseMimeType: "application/json",
+  responseSchema: gameStateSchema,
+  ...(abortSignal ? { abortSignal } : {}),
+  ...(includeThoughts
+    ? {
+        thinkingConfig: {
+          includeThoughts: true,
+        },
+      }
+    : {}),
+});
+
+const describeItem = (item: Item) => {
+  const metadata =[
+    item.semanticNotes ? `notes: ${item.semanticNotes}` : '',
+    item.madeWith ? `madeWith: ${item.madeWith}` : '',
+    item.materials?.length ? `materials: ${item.materials.join(', ')}` : '',
+    item.affordances?.length ? `affordances: ${item.affordances.join(', ')}` : '',
+    item.condition ? `condition: ${item.condition}` : '',
+    item.measurements
+      ? `measurements: ${Object.entries(item.measurements)
+          .map(([label, value]) => `${label}=${value}`)
+          .join(', ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
+
+  return `${item.id}: ${item.emoji} ${item.name} - ${item.descriptionMd || item.description}${metadata ? ` (${metadata})` : ''}`;
+};
+
+const describeInventory = (state: GameState) =>
+  Object.values(state.players)
+    .map((player) => {
+      const inventory = player.inventory.length ? player.inventory.map(describeItem).join('; ') : 'Empty';
+      return `- ${player.name} (ID: ${player.id}): Inventory: ${inventory}`;
+    })
+    .join('\n');
+
+const applyInventoryDeltas = (state: GameState, deltas: InventoryDelta[] | undefined) => {
+  const parseCountMeasurement = (value?: string) => {
+    if (!value) {
+      return 1;
+    }
+
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  };
+
+  const collapseDuplicateAdds = (addItems: Item[]) => {
+    const groups = new Map<string, Item[]>();
+    const order: string[] =[];
+
+    addItems.forEach((item) => {
+      const { count, ...restMeasurements } = item.measurements || {};
+      const key = JSON.stringify({
+        name: item.name,
+        emoji: item.emoji,
+        descriptionMd: item.descriptionMd,
+        origin: item.origin,
+        slot: item.slot,
+        color: item.color,
+        madeWith: item.madeWith,
+        materials: item.materials || [],
+        affordances: item.affordances ||[],
+        condition: item.condition,
+        measurements: restMeasurements,
+      });
+
+      if (!groups.has(key)) {
+        groups.set(key,[]);
+        order.push(key);
+      }
+
+      groups.get(key)!.push(item);
+    });
+
+    return order.map((key) => {
+      const group = groups.get(key)!;
+      if (group.length === 1) {
+        return group[0];
+      }
+
+      const base = group[0];
+      const totalCount = group.reduce((sum, item) => sum + parseCountMeasurement(item.measurements?.count), 0);
+
+      return {
+        ...base,
+        measurements: {
+          ...(base.measurements || {}),
+          count: String(totalCount),
+        },
+      };
+    });
+  };
+
+  const normalizedDeltas = (deltas ||[]).map((delta) => ({
+    ...delta,
+    addItems: collapseDuplicateAdds((delta.addItems || []) as Item[]),
+  }));
+
+  normalizedDeltas.forEach((delta) => {
+    const player = state.players[delta.playerId];
+    if (!player) {
+      return;
+    }
+
+    const removeIds = new Set(delta.removeItemIds ||[]);
+    player.inventory = player.inventory.filter((item) => !removeIds.has(item.id));
+    player.inventory.push(...(delta.addItems ||[]).map((item) => normalizeItem(item, item.origin || 'crafted')));
+
+    (Object.keys(player.equipped) as Array<keyof typeof player.equipped>).forEach((slot) => {
+      if (player.equipped[slot] && removeIds.has(player.equipped[slot] as string)) {
+        delete player.equipped[slot];
+      }
+    });
+  });
+
+  return normalizedDeltas;
+};
+
+const normalizeCanonDelta = (canonDelta: Partial<CanonDelta> | undefined): CanonDelta => ({
+  addFacts: normalizeStringList(canonDelta?.addFacts),
+  removeFacts: normalizeStringList(canonDelta?.removeFacts),
+  summary: optionalModelText(canonDelta?.summary),
+});
+
+const applyCanonDelta = (state: GameState, canonDelta: CanonDelta) => {
+  const removeSet = new Set(canonDelta.removeFacts);
+  const nextCanon = state.sessionCanon.filter((fact) => !removeSet.has(fact));
+
+  canonDelta.addFacts.forEach((fact) => {
+    if (!nextCanon.includes(fact)) {
+      nextCanon.push(fact);
+    }
+  });
+
+  state.sessionCanon = nextCanon;
+  return canonDelta;
+};
+
+const applyVisualCanonDelta = (state: GameState, visualDelta: CanonDelta) => {
+  const removeSet = new Set(visualDelta.removeFacts);
+  const nextVisualCanon = state.visualCanon.filter((fact) => !removeSet.has(fact));
+
+  visualDelta.addFacts.forEach((fact) => {
+    if (!nextVisualCanon.includes(fact)) {
+      nextVisualCanon.push(fact);
+    }
+  });
+
+  state.visualCanon = nextVisualCanon;
+  return visualDelta;
+};
+
+const buildRuntimeSnapshot = (currentState: GameState, levelPackage: LevelPackage) => {
+  const sessionCanon = currentState.sessionCanon.length
+    ? currentState.sessionCanon.map((fact) => `- ${fact}`).join('\n')
+    : '- No additional session canon has been established yet.';
+
+  const visualCanon = currentState.visualCanon?.length
+    ? currentState.visualCanon.map((fact) => `- ${fact}`).join('\n')
+    : '- No persistent visual facts established yet.';
+
+  const activeNPCs = Object.entries(currentState.discoveredNPCs || {})
+    .map(([name, prompt]) => `[NPC: ${name}]\n${prompt}`)
+    .join('\n\n');
+
+  return[
+    `MODE: ${currentState.mode}`,
+    `LEVEL TITLE: ${levelPackage.data.title}`,
+    `LEVEL GOAL: ${levelPackage.data.levelGoal}`,
+    levelPackage.data.startingText
+      ? `STARTING SCENE: ${levelPackage.data.startingText}\nLEVEL CONTEXT: ${levelPackage.prompts.levelDescription}`
+      : `LEVEL DESCRIPTION: ${levelPackage.prompts.levelDescription}`,
+    `CURRENT ENVIRONMENT TITLE: ${currentState.environment.title}`,
+    `CURRENT ENVIRONMENT DESCRIPTION: ${currentState.environment.description}`,
+    `CURRENT GAME TIME: ${currentState.gameTime}`,
+    `CURRENT EXITS: ${currentState.environment.exits.join(', ') || 'None listed.'}`,
+    `SESSION CANON:\n${sessionCanon}`,
+    `VISUAL CANON (Persistent Objects in Scene):\n${visualCanon}`,
+    `CURRENT PLAYERS:\n${describeInventory(currentState)}`,
+    activeNPCs ? `ACTIVE NPCs (Present in the world):\n${activeNPCs}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+};
+
+type TurnActionInput = {
+  playerId: string;
+  action: string;
+  playerName?: string;
+  sketch?: SketchAttachment;
+};
+
+const buildActionSnapshot = (
+  currentState: GameState,
+  actions: TurnActionInput[]
+) => actions
+  .map((entry) => `- ${entry.playerName || currentState.players[entry.playerId]?.name || entry.playerId}: ${entry.action}${entry.sketch ? ' [Sketch attached]' : ''}`)
+  .join('\n');
+
+const parseSketchAttachment = (sketch?: SketchAttachment) => {
+  if (!sketch?.dataUrl) {
+    return null;
+  }
+
+  const match = sketch.dataUrl.match(/^data:(.+);base64,(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    mimeType: match[1],
+    data: match[2],
+  };
+};
+
+const buildUserTurnParts = (userTurnContent: string, actions: TurnActionInput[]) => {
+  const parts: any[] = [{ text: userTurnContent }];
+
+  actions.forEach((entry) => {
+    const sketch = parseSketchAttachment(entry.sketch);
+    if (!sketch) {
+      return;
+    }
+
+    parts.push({
+      text: `Reference sketch from ${entry.playerName || entry.playerId} for this action: ${entry.action}`,
+    });
+    parts.push(createPartFromBase64(sketch.data, sketch.mimeType));
+  });
+
+  return[{
+    role: 'user' as const,
+    parts,
+  }];
+};
+
+const mergeThoughtLog = (existingThoughts: string[], nextThoughts: string[]) => {
+  const mergedThoughts = [...existingThoughts];
+
+  nextThoughts.forEach((thought) => {
+    const normalizedThought = thought.trim();
+    if (!normalizedThought) {
+      return;
+    }
+
+    const lastThought = mergedThoughts[mergedThoughts.length - 1];
+    if (!lastThought) {
+      mergedThoughts.push(normalizedThought);
+      return;
+    }
+
+    if (normalizedThought === lastThought) {
+      return;
+    }
+
+    if (normalizedThought.startsWith(lastThought)) {
+      mergedThoughts[mergedThoughts.length - 1] = normalizedThought;
+      return;
+    }
+
+    mergedThoughts.push(normalizedThought);
+  });
+
+  return mergedThoughts;
+};
+
+const mergeStreamText = (currentText: string, chunkText: string) => {
+  if (!chunkText) {
+    return currentText;
+  }
+
+  if (currentText && chunkText.startsWith(currentText)) {
+    return chunkText;
+  }
+
+  return currentText + chunkText;
+};
+
+const normalizeJsonResponseText = (text: string) => {
+  // Structured Outputs returns pure JSON, but we handle markdown-wrapped cases gracefully
+  const trimmed = text.trim();
+  
+  // Try to extract from markdown code blocks if present
+  if (trimmed.includes('```')) {
+    const extracted = trimmed
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```$/i, '')
+      .trim();
+    
+    const firstBrace = extracted.indexOf('{');
+    const lastBrace = extracted.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return extracted.slice(firstBrace, lastBrace + 1);
+    }
+  }
+  
+  // For pure JSON or when no markdown found, extract the JSON object itself
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+  
+  return trimmed;
+};
+
+const TEXTISH_OBJECT_KEYS =['name', 'title', 'label', 'text', 'description', 'summary'] as const;
+
+const coerceModelText = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => coerceModelText(entry, ''))
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const parts = TEXTISH_OBJECT_KEYS
+      .map((key) => coerceModelText(record[key], '').trim())
+      .filter(Boolean);
+
+    if (parts.length > 1) {
+      return `${parts[0]}: ${parts[1]}`;
+    }
+
+    if (parts.length === 1) {
+      return parts[0];
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+};
+
+const optionalModelText = (value: unknown) => {
+  const normalized = coerceModelText(value, '').trim();
+  return normalized || undefined;
+};
+
+const normalizeStringList = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .map((entry) => coerceModelText(entry, '').trim())
+        .filter(Boolean)
+    :[];
+
+const normalizeMeasurements = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value)
+    .map(([key, rawValue]) => [key, coerceModelText(rawValue, '').trim()] as const)
+    .filter(([key, normalizedValue]) => key.trim() && normalizedValue);
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
+const normalizeEnvironmentPayload = (
+  value: unknown,
+  fallback: GameState['environment']
+): GameState['environment'] => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return fallback;
+  }
+
+  const record = value as Record<string, unknown>;
+  const exits = normalizeStringList(record.exits);
+
+  return {
+    title: coerceModelText(record.title, fallback.title).trim() || fallback.title,
+    description: coerceModelText(record.description, fallback.description).trim() || fallback.description,
+    exits: exits.length > 0 ? exits : fallback.exits,
+  };
+};
+
+const normalizeInventoryItemPayload = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const fallbackDescription = optionalModelText(record.description)
+    || optionalModelText(record.descriptionMd)
+    || optionalModelText(record.semanticNotes)
+    || 'Unspecified item.';
+
+  return normalizeItem(
+    {
+      id: optionalModelText(record.id),
+      name: coerceModelText(record.name, fallbackDescription).trim() || fallbackDescription,
+      emoji: optionalModelText(record.emoji),
+      description: fallbackDescription,
+      descriptionMd: optionalModelText(record.descriptionMd) || fallbackDescription,
+      semanticNotes: optionalModelText(record.semanticNotes),
+      color: optionalModelText(record.color),
+      slot: typeof record.slot === 'string' ? (record.slot as Item['slot']) : undefined,
+      origin: typeof record.origin === 'string' ? (record.origin as Item['origin']) : undefined,
+      tags: normalizeStringList(record.tags),
+      madeWith: optionalModelText(record.madeWith),
+      materials: normalizeStringList(record.materials),
+      affordances: normalizeStringList(record.affordances),
+      measurements: normalizeMeasurements(record.measurements),
+      condition: optionalModelText(record.condition),
+    },
+    typeof record.origin === 'string' ? (record.origin as Item['origin']) : 'crafted'
+  );
+};
+
+const normalizeInventoryDeltasPayload = (value: unknown): InventoryDelta[] => {
+  if (!Array.isArray(value)) {
+    return[];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return null;
+      }
+
+      const record = entry as Record<string, unknown>;
+      const playerId = coerceModelText(record.playerId, '').trim();
+      if (!playerId) {
+        return null;
+      }
+
+      const delta: InventoryDelta = {
+        playerId,
+        removeItemIds: normalizeStringList(record.removeItemIds),
+        addItems: (Array.isArray(record.addItems) ? record.addItems :[])
+          .map((item) => normalizeInventoryItemPayload(item))
+          .filter((item): item is Item => Boolean(item)),
+        summary: optionalModelText(record.summary),
+      };
+
+      return delta;
+    })
+    .filter((delta): delta is InventoryDelta => delta !== null);
+};
+
+const normalizeNPCDialogues = (value: unknown): NPCDialogue[] => {
+  if (!Array.isArray(value)) return[];
+  return value
+    .map(entry => {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry as Record<string, unknown>;
+      return {
+        name: coerceModelText(record.name, 'Unknown NPC').trim(),
+        emoji: optionalModelText(record.emoji) || '👤',
+        text: coerceModelText(record.text, '').trim()
+      };
+    })
+    .filter((d): d is NPCDialogue => d !== null && d.text.length > 0);
+};
+
+interface ResolveTurnArgs {
+  currentState: GameState;
+  levelPackage: LevelPackage;
+  globalSystemPrompt: string;
+  semanticPhysicsPrompt: string;
+  inventorPrompt: string;
+  actions: TurnActionInput[];
+  modelName: string;
+  externalAbortSignal?: AbortSignal;
+  onRetry?: (seconds: number, attempt: number, status: string) => void;
+  onThoughtUpdate?: (thoughtLog: string[]) => void;
+  onTextUpdate?: (text: string) => void;
+  onLog?: (event: string, data?: any) => void;
+}
+
+export async function resolveTurn({
+  currentState,
+  levelPackage,
+  globalSystemPrompt,
+  semanticPhysicsPrompt,
+  inventorPrompt,
+  actions,
+  modelName,
+  externalAbortSignal,
+  onRetry,
+  onThoughtUpdate,
+  onTextUpdate,
+  onLog
+}: ResolveTurnArgs): Promise<{ newState: GameState; narrative: string; cinematicImagePrompt: string; npcDialogues: NPCDialogue[]; debug: EngineDebugState }> {
+  const levelSystemPrompt = levelPackage.prompts.systemPrompt.trim();
+  const levelUserPrompt = levelPackage.prompts.userPrompt.trim();
+  const runtimeSnapshot = buildRuntimeSnapshot(currentState, levelPackage);
+  const actionSnapshot = buildActionSnapshot(currentState, actions);
+
+  const systemInstruction =[
+    globalSystemPrompt,
+    semanticPhysicsPrompt,
+    inventorPrompt,
+    '# LEVEL SYSTEM PROMPT',
+    levelSystemPrompt,
+    '# REQUIRED OUTPUT FORMAT',
+    'You MUST return ONLY a valid JSON object matching the following OpenAPI schema. Do NOT wrap it in markdown formatting blocks. Schema:',
+    JSON.stringify(gameStateSchema, null, 2)
+  ].join('\n\n');
+
+  const userTurnContent =[
+    '# LEVEL USER PROMPT',
+    levelUserPrompt,
+    '# RUNTIME SNAPSHOT',
+    runtimeSnapshot,
+    '# PLAYER ACTIONS THIS TURN',
+    actionSnapshot,
+  ].join('\n\n');
+
+  const fullPrompt =[
+    '# SYSTEM INSTRUCTION',
+    systemInstruction,
+    '# USER CONTENT',
+    userTurnContent,
+  ].join('\n\n');
+
+  const finalizeResolvedTurn = (resultText: string) => {
+    onLog?.('finalize_start', { timestamp: Date.now(), textSample: resultText.substring(0, 100) });
+    
+    let result;
+    try {
+      const normalized = normalizeJsonResponseText(resultText);
+      onLog?.('normalize_complete', { normalized: normalized.substring(0, 200) });
+      result = JSON.parse(normalized);
+      
+      // Log model output to conversation file
+      conversationLogger.logModelOutput(
+        currentState.sessionId,
+        result.narrative || '',
+        result.npcDialogues || [],
+        result.cinematicImagePrompt
+      );
+    } catch (parseError: any) {
+      onLog?.('json_parse_error', {
+        error: parseError.message,
+        position: parseError.message.match(/position (\d+)/)?.[1],
+        responseLength: resultText.length,
+        responseSample: resultText.substring(0, 500),
+      });
+      conversationLogger.logError(currentState.sessionId, 'JSON Parse Error', {
+        error: parseError.message,
+        position: parseError.message.match(/position (\d+)/)?.[1],
+        responseLength: resultText.length
+      });
+      throw parseError;
+    }
+    const normalizedEnvironment = normalizeEnvironmentPayload(result.environment, currentState.environment);
+    const normalizedInventoryDeltas = normalizeInventoryDeltasPayload(result.inventoryDeltas);
+    const npcDialogues = normalizeNPCDialogues(result.npcDialogues);
+
+    const nextDiscoveredNPCs = { ...currentState.discoveredNPCs };
+    if (Array.isArray(result.discoveredNPCs)) {
+      result.discoveredNPCs.forEach((npc: any) => {
+        if (npc.name) {
+          nextDiscoveredNPCs[npc.name] = `Name: ${npc.name}\nRole: ${npc.role || 'Unknown'}\nAppearance: ${npc.appearance || 'Unknown'}\nPersonality: ${npc.personality || 'Neutral'}\nIcon: ${npc.icon || '👤'}`;
+        }
+      });
+    }
+
+    const newState: GameState = {
+      ...currentState,
+      environment: normalizedEnvironment,
+      turnNumber: currentState.turnNumber + 1,
+      isResolving: false,
+      levelComplete: result.levelComplete === true ? true : currentState.levelComplete,
+      discoveredNPCs: nextDiscoveredNPCs,
+      gameTime: result.gameTime || currentState.gameTime || '10:00 AM',
+      debug: null,
+    };
+
+    const inventoryDeltas = applyInventoryDeltas(newState, normalizedInventoryDeltas);
+    const canonDelta = applyCanonDelta(newState, normalizeCanonDelta(result.canonDelta as CanonDelta | undefined));
+    const visualCanonDelta = applyVisualCanonDelta(newState, normalizeCanonDelta(result.visualCanonDeltas as CanonDelta | undefined));
+
+    Object.values(newState.players).forEach((player) => {
+      player.lastAction = undefined;
+    });
+
+    const debug: EngineDebugState = {
+      globalRules: globalSystemPrompt,
+      levelSystemPrompt,
+      levelUserPrompt,
+      runtimeSnapshot: `${runtimeSnapshot}\n\nPLAYER ACTIONS:\n${actionSnapshot}`,
+      sessionCanon: [...newState.sessionCanon],
+      visualCanon:[...newState.visualCanon],
+      fullPrompt,
+      rawResponse: resultText,
+      inventoryDeltas,
+      canonDelta,
+      visualCanonDelta,
+      cinematicImagePrompt: result.cinematicImagePrompt || '',
+      actions: actions.map((entry) => ({
+        playerId: entry.playerId,
+        playerName: entry.playerName || currentState.players[entry.playerId]?.name || entry.playerId,
+        action: entry.action,
+        hasSketch: Boolean(entry.sketch),
+      })),
+    };
+
+    onLog?.('finalize_complete', { timestamp: Date.now() });
+    return {
+      newState,
+      narrative: coerceModelText(result.narrative, 'SYSTEM ERROR: Model returned an invalid narrative payload.'),
+      npcDialogues,
+      cinematicImagePrompt: result.cinematicImagePrompt || '',
+      debug,
+    };
+  };
+
+  const generateStreamedResult = (): Promise<string> => {
+    return new Promise(async (resolve, reject) => {
+      onLog?.('stream_init', {
+        modelName,
+        timeoutMs: MODEL_STREAM_TOTAL_TIMEOUT_MS,
+        idleTimeoutMs: MODEL_STREAM_IDLE_TIMEOUT_MS,
+        systemInstructionLength: systemInstruction.length,
+        userTurnContentLength: userTurnContent.length
+      });
+
+      const abortController = new AbortController();
+      let timedOutBy: 'idle' | 'total' | 'manual' | null = null;
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      
+      const handleAbort = (reason: 'idle' | 'total' | 'manual') => {
+        if (timedOutBy) return;
+        timedOutBy = reason;
+        onLog?.(`abort_${reason}_fired`, { timestamp: Date.now() });
+        abortController.abort();
+        reject(new Error(`MODEL_STREAM_${reason.toUpperCase()}_ABORT`));
+      };
+
+      const totalTimer = setTimeout(() => handleAbort('total'), MODEL_STREAM_TOTAL_TIMEOUT_MS);
+
+      const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => handleAbort('idle'), MODEL_STREAM_IDLE_TIMEOUT_MS);
+      };
+
+      const onExternalAbort = () => handleAbort('manual');
+      if (externalAbortSignal) {
+        externalAbortSignal.addEventListener('abort', onExternalAbort);
+      }
+
+      const cleanup = () => {
+        clearTimeout(totalTimer);
+        if (idleTimer) clearTimeout(idleTimer);
+        if (externalAbortSignal) externalAbortSignal.removeEventListener('abort', onExternalAbort);
+      };
+
+      let resultText = '';
+      let streamedThoughts: string[] =[];
+      let chunkIndex = 0;
+
+      resetIdleTimer();
+
+      try {
+        onLog?.('api_call_init', {
+          model: modelName,
+          method: 'generateContentStream',
+          systemInstructionLength: systemInstruction.length,
+          userContentLength: userTurnContent.length,
+          userPartsCount: buildUserTurnParts(userTurnContent, actions).length,
+        });
+
+        const response = await ai.models.generateContentStream({
+          model: modelName,
+          contents: buildUserTurnParts(userTurnContent, actions),
+          config: buildGenerationConfig({
+            includeThoughts: true,
+            abortSignal: abortController.signal,
+            systemInstruction,
+          }),
+        });
+
+        onLog?.('api_call_success', { model: modelName, method: 'generateContentStream' });
+
+        onLog?.('stream_connected', { timestamp: Date.now() });
+
+        for await (const chunk of response) {
+          if (timedOutBy) break; // Exit if already aborted
+          chunkIndex++;
+          resetIdleTimer();
+
+          let chunkText = '';
+          let thoughtParts: string[] =[];
+
+          try {
+            // Safely extract ONLY text parts, ignoring thoughts for the final JSON result
+            const textParts = chunk.candidates?.[0]?.content?.parts
+              ?.filter((part) => !part.thought && typeof part.text === 'string')
+              .map((part) => part.text) || [];
+            chunkText = textParts.join('');
+
+            thoughtParts = chunk.candidates?.[0]?.content?.parts
+              ?.filter((part) => part.thought && typeof part.text === 'string' && part.text.trim().length > 0)
+              .map((part) => part.text!.trim()) ||[];
+
+            onLog?.('stream_chunk', {
+              chunkIndex,
+              timestamp: Date.now(),
+              textLength: chunkText.length,
+              thoughtLength: thoughtParts.join('').length,
+              finishReason: chunk.candidates?.[0]?.finishReason,
+              rawParts: chunk.candidates?.[0]?.content?.parts?.map(p => ({ type: p.thought ? 'thought' : 'text', len: p.text?.length }))
+            });
+          } catch (err: any) {
+            onLog?.('stream_chunk_parse_error', { chunkIndex, error: err.message });
+          }
+
+          if (chunkText) {
+            resultText = mergeStreamText(resultText, chunkText);
+            onTextUpdate?.(resultText);
+          }
+
+          if (thoughtParts.length > 0) {
+            const mergedThoughts = mergeThoughtLog(streamedThoughts, thoughtParts);
+            const changed = mergedThoughts.length !== streamedThoughts.length || mergedThoughts.some((thought, index) => thought !== streamedThoughts[index]);
+
+            if (changed) {
+              streamedThoughts = mergedThoughts;
+              onThoughtUpdate?.([...streamedThoughts]);
+            }
+          }
+        }
+        
+        cleanup();
+        if (timedOutBy) return;
+
+        if (!resultText) {
+          onLog?.('stream_empty_result', { timestamp: Date.now() });
+          reject(new Error('No response from model'));
+        } else {
+          onLog?.('stream_complete', { timestamp: Date.now(), totalChunks: chunkIndex, finalLength: resultText.length });
+          resolve(resultText);
+        }
+      } catch (error: any) {
+        cleanup();
+        if (timedOutBy) return;
+        
+        onLog?.('stream_error', { timestamp: Date.now(), error: error.message, stack: error.stack, chunkIndex });
+        reject(error);
+      }
+    });
+  };
+
+  const generateFallbackResult = (): Promise<string> => {
+    return new Promise(async (resolve, reject) => {
+      onLog?.('fallback_init', { timestamp: Date.now() });
+      
+      const abortController = new AbortController();
+      let timedOutBy: 'total' | 'manual' | null = null;
+      
+      const handleAbort = (reason: 'total' | 'manual') => {
+        if (timedOutBy) return;
+        timedOutBy = reason;
+        onLog?.(`fallback_abort_${reason}_fired`, { timestamp: Date.now() });
+        abortController.abort();
+        reject(new Error(`MODEL_FALLBACK_${reason.toUpperCase()}_ABORT`));
+      };
+
+      const timeout = setTimeout(() => handleAbort('total'), MODEL_FALLBACK_TIMEOUT_MS);
+
+      const onExternalAbort = () => handleAbort('manual');
+      if (externalAbortSignal) {
+        externalAbortSignal.addEventListener('abort', onExternalAbort);
+      }
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (externalAbortSignal) externalAbortSignal.removeEventListener('abort', onExternalAbort);
+      };
+
+      try {
+        onLog?.('api_call_init', {
+          model: modelName,
+          method: 'generateContent',
+          systemInstructionLength: systemInstruction.length,
+          userContentLength: userTurnContent.length,
+          userPartsCount: buildUserTurnParts(userTurnContent, actions).length,
+          includeThoughts: false,
+        });
+
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: buildUserTurnParts(userTurnContent, actions),
+          config: buildGenerationConfig({
+            includeThoughts: false,
+            abortSignal: abortController.signal,
+            systemInstruction,
+          }),
+        });
+        
+        onLog?.('api_call_success', { model: modelName, method: 'generateContent' });
+        
+        cleanup();
+        if (timedOutBy) return;
+
+        onLog?.('fallback_complete', { timestamp: Date.now() });
+        
+        const textParts = response.candidates?.[0]?.content?.parts
+          ?.filter((part) => !part.thought && typeof part.text === 'string')
+          .map((part) => part.text) ||[];
+        const resultText = textParts.length > 0 ? textParts.join('') : response.text;
+
+        if (!resultText) {
+          reject(new Error('No response from model'));
+        } else {
+          onTextUpdate?.(resultText);
+          resolve(resultText);
+        }
+      } catch (error: any) {
+        cleanup();
+        if (timedOutBy) return;
+        
+        onLog?.('fallback_error', { timestamp: Date.now(), error: error.message });
+        reject(error);
+      }
+    });
+  };
+
+  let attempt = 0;
+  let transientRetryCount = 0;
+  let useStreaming = true;
+
+  while (true) {
+    try {
+      const resultText = useStreaming ? await generateStreamedResult() : await generateFallbackResult();
+      return finalizeResolvedTurn(resultText);
+    } catch (error: any) {
+      let resolvedError = error;
+      const isManualRetry = error.message === 'MODEL_STREAM_MANUAL_ABORT' || error.message === 'MODEL_FALLBACK_MANUAL_ABORT';
+      const isStreamTimeout = error.message === 'MODEL_STREAM_IDLE_ABORT' || error.message === 'MODEL_STREAM_TOTAL_ABORT';
+
+      onLog?.('error_caught', {
+        attempt: attempt + 1,
+        isManualRetry,
+        isStreamTimeout,
+        errorMessage: error.message,
+        errorName: error.name,
+        useStreaming,
+      });
+
+      if (isManualRetry) {
+        onLog?.('manual_retry_requested', { reason: error.message, attempt: attempt + 1, useStreaming });
+        throw new Error('MANUAL_RETRY_REQUESTED');
+      }
+
+      if (isStreamTimeout && useStreaming) {
+        useStreaming = false;
+        attempt += 1;
+        onLog?.('retry_triggered', { attempt, type: 'stream_fallback', reason: error.message });
+        onRetry?.(1, attempt, 'TIMEOUT');
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      const isRetryable = isRetriableModelError(error);
+
+      onLog?.('error_classification', {
+        isRetryable,
+        errorStatus: error?.status || error?.response?.status,
+        errorMessage: error.message,
+      });
+
+      if (isRetryable) {
+        let status = error?.status || error?.response?.status;
+        if (!status && typeof error.message === 'string') {
+          const match = error.message.match(/\b(503|500|429)\b/);
+          if (match) status = match[1];
+        }
+        const statusStr = status ? String(status) : 'Unknown';
+        
+        transientRetryCount += 1;
+        attempt += 1;
+        const backoffSeconds = Math.min(Math.pow(2, transientRetryCount), 10);
+        onLog?.('retry_triggered', { attempt, type: 'transient_backoff', backoffSeconds, statusStr, transientRetryCount });
+        onRetry?.(backoffSeconds, attempt, statusStr);
+        await new Promise((resolve) => setTimeout(resolve, backoffSeconds * 1000));
+        continue;
+      }
+
+      const errorMessage = `SYSTEM ERROR: ${resolvedError.message}`;
+      const emptyCanonDelta = normalizeCanonDelta(undefined);
+      
+      onLog?.('fatal_error_handled', { 
+        timestamp: Date.now(), 
+        errorMessage,
+        totalAttempts: attempt + 1,
+        useStreaming,
+      });
+
+      return {
+        newState: {
+          ...currentState,
+          isResolving: false,
+          debug: null,
+        },
+        narrative: errorMessage,
+        npcDialogues:[],
+        cinematicImagePrompt: '',
+        debug: {
+          globalRules: globalSystemPrompt,
+          levelSystemPrompt,
+          levelUserPrompt,
+          runtimeSnapshot: `${runtimeSnapshot}\n\nPLAYER ACTIONS:\n${actionSnapshot}`,
+          sessionCanon: [...currentState.sessionCanon],
+          visualCanon:[...currentState.visualCanon],
+          fullPrompt,
+          rawResponse: errorMessage,
+          inventoryDeltas:[],
+          canonDelta: emptyCanonDelta,
+          visualCanonDelta: emptyCanonDelta,
+          cinematicImagePrompt: '',
+          actions: actions.map((entry) => ({
+            playerId: entry.playerId,
+            playerName: currentState.players[entry.playerId]?.name || entry.playerId,
+            action: entry.action,
+          })),
+        },
+      };
+    }
+  }
+}
+```
+
+server.ts
+```ts
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import type { EditorDraft, GameMode, LevelPackage } from './src/types/index.js';
+import { freeplaySpawnMenu } from './src/data/spawnCatalog.js';
+import { decideBotAction } from './src/services/botEngine.js';
+import { resolveTurn } from './src/services/engine.js';
+import { conversationLogger } from './src/services/conversationLogger.js';
+import { ONLY_IMAGES, GEN_STARTER } from './src/config/settings.js';
+import {
+  FREEPLAY_LEVEL_ID,
+  editorDraftToLevelPackage,
+  levelPackageToEditorDraft,
+  listLevelSummaries,
+  loadGlobalSystemPrompt,
+  loadSemanticPhysicsPrompt,
+  loadStarterCinematicPrompt,
+  loadInventorPrompt,
+  loadLevelPackage,
+} from './src/services/levelLoader.js';
+import { createStarterItem, normalizeInventory, makeItemId, spawnMenuItemToCard } from './src/services/itemCards.js';
+import { generateSceneImage } from './src/services/visualizer.js';
+import type {
+  ActionPayload,
+  BotProgress,
+  ChatMessage,
+  ClientToServerEvents,
+  GameState,
+  JoinPayload,
+  Player,
+  ServerToClientEvents,
+  TurnProgress,
+} from './src/types/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+interface GameSession {
+  id: string;
+  mode: GameMode;
+  baseLevelPackage: LevelPackage;
+  editorDraft: EditorDraft | null;
+  gameState: GameState;
+  chatHistory: ChatMessage[];
+  botControllers: Record<string, BotController>;
+  modelName: string;
+  settings: {
+    onlyImages: boolean;
+    shouldGenerateImages: boolean;
+  };
+  imageGenerationAbortController: AbortController | null;
+  turnResolutionAbortController: AbortController | null;
+  manualRetryRequested: boolean;
+}
+
+interface BotController {
+  active: boolean;
+  running: boolean;
+  timeoutId: ReturnType<typeof setTimeout> | null;
+  progress: BotProgress;
+}
+
+const PLAYER_COLORS =['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+const idleTurnProgress: TurnProgress = { phase: 'idle', thoughtLog:[], responseText: '' };
+const createIdleBotProgress = (playerId?: string): BotProgress => ({ playerId, isActive: false, phase: 'idle' });
+const BOT_TYPING_STEP_MS = 45;
+const BOT_TYPING_CHUNK_SIZE = 4;
+const BOT_NEXT_TURN_DELAY_MS = 1400;
+const BOT_RESET_DELAY_MS = 600;
+
+const makeMessageId = () => Math.random().toString(36).slice(2, 9) + Date.now();
+
+const pickSpawnMenu = (mode: GameMode) => (mode === 'level' ?[] : freeplaySpawnMenu);
+
+const seedExits = (mode: GameMode) => {
+  if (mode === 'freeplay') {
+    return['Wander deeper into the forest', 'Look for useful materials', 'Clear space for an invention'];
+  }
+  return['Survey the area', 'Search for useful materials', 'Push farther into the world'];
+};
+
+const buildBaseGameState = (sessionId: string, mode: GameMode, levelPackage: LevelPackage): GameState => ({
+  sessionId,
+  mode,
+  levelId: levelPackage.data.id,
+  levelTitle: levelPackage.data.title,
+  levelStartingText: levelPackage.data.startingText ?? levelPackage.prompts.levelDescription,
+  levelGoal: levelPackage.data.levelGoal,
+  startingImageUrl: levelPackage.data.startingImageUrl,
+  environment: {
+    title: levelPackage.data.title,
+    description: levelPackage.data.startingText ?? levelPackage.prompts.levelDescription,
+    exits: seedExits(mode),
+  },
+  players: {},
+  turnNumber: 1,
+  isResolving: false,
+  spawnMenu: pickSpawnMenu(mode),
+  sessionCanon: [],
+  visualCanon:[],
+  discoveredNPCs: levelPackage.prompts.npcPrompts || {},
+  gameTime: '10:00 AM',
+  debug: null,
+});
+
+const getActiveLevelPackage = (session: GameSession) =>
+  session.editorDraft ? editorDraftToLevelPackage(session.editorDraft) : session.baseLevelPackage;
+
+const buildStarterInventory = (levelPackage: LevelPackage) =>
+  normalizeInventory(levelPackage.data.startingInventory.map((item) => createStarterItem(item)));
+
+const buildEquippedState = (inventory: Player['inventory']) => {
+  const equipped: Player['equipped'] = {};
+  inventory.forEach((item) => {
+    if (item.slot !== 'none' && !equipped[item.slot]) {
+      equipped[item.slot] = item.id;
+    }
+  });
+  return equipped;
+};
+
+const resetPlayersForLevel = (players: Record<string, Player>, levelPackage: LevelPackage) => {
+  const nextPlayers: Record<string, Player> = {};
+  Object.values(players).forEach((player) => {
+    const inventory = buildStarterInventory(levelPackage);
+    nextPlayers[player.id] = {
+      ...player,
+      inventory,
+      equipped: buildEquippedState(inventory),
+      isLockedIn: false,
+      lastAction: undefined,
+    };
+  });
+  return nextPlayers;
+};
+
+const getInventoryLookup = (inventory: any[]) => {
+  const lookup = new Map<string, { item: any, parentList: any[], index: number }>();
+  const traverse = (list: any[]) => {
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+      if (item.id) {
+        lookup.set(item.id, { item, parentList: list, index: i });
+      }
+      if (item.contents) traverse(item.contents);
+    }
+  };
+  traverse(inventory);
+  return lookup;
+};
+
+const findItemRecursive = (inventory: any[], itemId: string): any => {
+  for (let i = 0; i < inventory.length; i++) {
+    const item = inventory[i];
+    if (item.id === itemId) return { ownerList: inventory, item, index: i };
+    if (item.contents) {
+      const found = findItemRecursive(item.contents as any[], itemId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const removeItemRecursive = (inventory: any[], itemId: string): any => {
+  const found = findItemRecursive(inventory, itemId);
+  if (found) {
+    found.ownerList.splice(found.index, 1);
+    return found.item;
+  }
+  return null;
+};
+
+async function startServer() {
+  const app = express();
+  const httpServer = createServer(app);
+  const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
+    cors: { origin: '*' },
+  });
+
+  const PORT = Number(process.env.PORT || 3001);
+  const globalSystemPrompt = await loadGlobalSystemPrompt();
+  const semanticPhysicsPrompt = await loadSemanticPhysicsPrompt();
+  const starterCinematicPromptTemplate = await loadStarterCinematicPrompt();
+  const inventorPrompt = await loadInventorPrompt();
+  const sessions = new Map<string, GameSession>();
+
+  const levelsPath = process.env.NODE_ENV === 'production' 
+    ? path.join(__dirname, 'levels') 
+    : path.join(process.cwd(), 'levels');
+  app.use('/levels', express.static(levelsPath));
+
+  const broadcastState = (session: GameSession) => {
+    io.to(session.id).emit('gameState', session.gameState);
+  };
+
+  const broadcastHistory = (session: GameSession) => {
+    io.to(session.id).emit('narrativeLog', session.chatHistory);
+  };
+
+  const emitTurnProgress = (session: GameSession, progress: TurnProgress) => {
+    io.to(session.id).emit('turnProgress', progress);
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const getBotController = (session: GameSession, playerId: string) => {
+    if (!session.botControllers[playerId]) {
+      session.botControllers[playerId] = {
+        active: false,
+        running: false,
+        timeoutId: null,
+        progress: createIdleBotProgress(playerId),
+      };
+    }
+    return session.botControllers[playerId];
+  };
+
+  const clearBotTimeout = (controller: BotController) => {
+    if (controller.timeoutId) {
+      clearTimeout(controller.timeoutId);
+      controller.timeoutId = null;
+    }
+  };
+
+  const emitBotProgress = (session: GameSession, playerId: string, progress: BotProgress) => {
+    const controller = getBotController(session, playerId);
+    controller.progress = { ...progress, playerId };
+    io.to(playerId).emit('botProgress', controller.progress);
+  };
+
+  const setBotInactive = (session: GameSession, playerId: string, message?: string) => {
+    const controller = getBotController(session, playerId);
+    controller.active = false;
+    controller.running = false;
+    clearBotTimeout(controller);
+    emitBotProgress(session, playerId, { isActive: false, phase: 'idle', message });
+  };
+
+  const addChatMessage = (session: GameSession, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => {
+    const fullMsg: ChatMessage = { ...msg, id: makeMessageId(), timestamp: Date.now() };
+    session.chatHistory.push(fullMsg);
+    if (session.chatHistory.length > 200) session.chatHistory.shift();
+    io.to(session.id).emit('chatMessage', fullMsg);
+  };
+
+  const ensureSession = async (config: { sessionId: string; mode: GameMode; levelId: string; modelName: string }) => {
+    const existing = sessions.get(config.sessionId);
+    if (existing) {
+      if (config.modelName) existing.modelName = config.modelName;
+      return existing;
+    }
+
+    const levelId = config.mode === 'freeplay' ? FREEPLAY_LEVEL_ID : config.levelId;
+    const baseLevelPackage = await loadLevelPackage(levelId);
+    const session: GameSession = {
+      id: config.sessionId,
+      mode: config.mode,
+      baseLevelPackage,
+      editorDraft: config.mode === 'editor' ? levelPackageToEditorDraft(baseLevelPackage) : null,
+      gameState: buildBaseGameState(config.sessionId, config.mode, baseLevelPackage),
+      chatHistory:[],
+      botControllers: {},
+      modelName: config.modelName,
+      settings: {
+        onlyImages: ONLY_IMAGES,
+        shouldGenerateImages: true,
+      },
+      imageGenerationAbortController: null,
+      turnResolutionAbortController: null,
+      manualRetryRequested: false,
+    };
+    sessions.set(session.id, session);
+
+    // Log session start to conversation file
+    conversationLogger.logConversationStart(session.id, levelId, []);
+
+    if (GEN_STARTER) {
+      const visualId = makeMessageId();
+      const starterImageMsg: ChatMessage = {
+        id: visualId,
+        type: 'image',
+        text: session.gameState.levelStartingText, 
+        timestamp: Date.now()
+      };
+      session.chatHistory.push(starterImageMsg);
+
+      const cinematicPrompt = starterCinematicPromptTemplate.replace('{LEVEL_STARTING_TEXT}', session.gameState.levelStartingText);
+
+      generateSceneImage(cinematicPrompt, undefined, (seconds, attempt, status) => {
+        console.log(`Retrying starter image in ${seconds}s, #${attempt} (Status: ${status})`);
+      })
+        .then(payload => {
+          const msg = session.chatHistory.find(m => m.id === visualId);
+          if (msg) {
+            msg.imageUrl = payload.imageUrl;
+            msg.thoughtLength = payload.thoughtLength;
+          }
+          io.to(session.id).emit('sceneVisualized', { 
+            id: visualId, 
+            imageUrl: payload.imageUrl!,
+            thoughtLength: payload.thoughtLength
+          });
+        })
+        .catch(err => console.error("Failed to generate starter image:", err));
+    }
+    return session;
+  };
+
+  const getSessionForSocket = (socketId: string) => {
+    for (const session of sessions.values()) {
+      if (session.gameState.players[socketId]) return session;
+    }
+    return null;
+  };
+
+  const lockPlayerAction = (session: GameSession, playerId: string, action: ActionPayload) => {
+    if (session.gameState.isResolving) return false;
+    const player = session.gameState.players[playerId];
+    if (!player) return false;
+    const normalizedActionText = action.text?.trim();
+    if (!normalizedActionText) return false;
+    player.lastAction = { text: normalizedActionText, sketch: action.sketch };
+    player.isLockedIn = true;
+    
+    // Log player input to conversation file
+    conversationLogger.logPlayerInput(session.id, playerId, player.name, normalizedActionText);
+    
+    addChatMessage(session, { type: 'system', text: `${player.name} has locked in their action.` });
+    broadcastState(session);
+    checkAndResolveTurn(session);
+    return true;
+  };
+
+  function queueBotTurn(session: GameSession, playerId: string, delayMs = BOT_NEXT_TURN_DELAY_MS) {
+    const controller = getBotController(session, playerId);
+    const player = session.gameState.players[playerId];
+    if (!controller.active || controller.running || !player || session.gameState.isResolving || player.isLockedIn || session.gameState.levelComplete) return;
+    clearBotTimeout(controller);
+    controller.timeoutId = setTimeout(() => {
+      controller.timeoutId = null;
+      void runBotTurn(session, playerId);
+    }, delayMs);
+  }
+
+  function scheduleActiveBots(session: GameSession, delayMs = BOT_NEXT_TURN_DELAY_MS) {
+    Object.keys(session.botControllers).forEach((playerId) => queueBotTurn(session, playerId, delayMs));
+  }
+
+  const runBotTurn = async (session: GameSession, playerId: string) => {
+    const controller = getBotController(session, playerId);
+    const player = session.gameState.players[playerId];
+    if (!controller.active || controller.running || !player || session.gameState.isResolving || player.isLockedIn || session.gameState.levelComplete) return;
+    controller.running = true;
+    clearBotTimeout(controller);
+
+    console.log(`[BOT ${playerId}] Starting turn for ${player.name}`);
+
+    try {
+      emitBotProgress(session, playerId, { isActive: true, phase: 'thinking', message: 'Bot is thinking...' });
+      const { thinking, action } = await decideBotAction({
+        currentState: session.gameState,
+        levelPackage: getActiveLevelPackage(session),
+        chatHistory: session.chatHistory,
+        playerId,
+        modelName: session.modelName,
+      });
+      if (!controller.active || !session.gameState.players[playerId] || session.gameState.isResolving) return;
+
+      emitBotProgress(session, playerId, { isActive: true, phase: 'typing', thinkingText: thinking, draftText: '', message: 'Bot is typing...' });
+      for (let index = 0; index < action.length; index += BOT_TYPING_CHUNK_SIZE) {
+        emitBotProgress(session, playerId, { isActive: true, phase: 'typing', thinkingText: thinking, draftText: action.slice(0, index + BOT_TYPING_CHUNK_SIZE), message: 'Bot is typing...' });
+        await sleep(BOT_TYPING_STEP_MS);
+        if (!controller.active || !session.gameState.players[playerId] || session.gameState.isResolving) return;
+      }
+
+      emitBotProgress(session, playerId, { isActive: true, phase: 'sending', thinkingText: thinking, draftText: action, message: 'Bot pressed send.' });
+      await sleep(220);
+      if (!controller.active || !session.gameState.players[playerId] || session.gameState.isResolving) return;
+
+      const locked = lockPlayerAction(session, playerId, { text: action });
+      if (locked) {
+        console.log(`[BOT ${playerId}] Action locked: "${action.substring(0, 50)}..."`);
+        emitBotProgress(session, playerId, { isActive: true, phase: 'idle', thinkingText: thinking, draftText: action, message: 'Waiting for turn resolution...' });
+      }
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[BOT ${playerId}] Error: ${errorMsg}`);
+      emitBotProgress(session, playerId, { isActive: true, phase: 'error', message: `Bot error: ${errorMsg}` });
+    } finally {
+      controller.running = false;
+    }
+  };
+
+  const resetSessionState = (session: GameSession) => {
+    const activeLevelPackage = getActiveLevelPackage(session);
+    session.gameState = {
+      ...buildBaseGameState(session.id, session.mode, activeLevelPackage),
+      players: resetPlayersForLevel(session.gameState.players, activeLevelPackage),
+    };
+    session.chatHistory =[];
+    emitTurnProgress(session, idleTurnProgress);
+    addChatMessage(session, { type: 'system', text: `Session reset for ${activeLevelPackage.data.title}.` });
+    
+    if (GEN_STARTER) {
+      const visualId = makeMessageId();
+      const starterImageMsg: ChatMessage = {
+        id: visualId,
+        type: 'image',
+        text: session.gameState.levelStartingText,
+        timestamp: Date.now()
+      };
+      session.chatHistory.push(starterImageMsg);
+      const cinematicPrompt = starterCinematicPromptTemplate.replace('{LEVEL_STARTING_TEXT}', session.gameState.levelStartingText);
+      generateSceneImage(cinematicPrompt, undefined, (seconds, attempt, status) => {
+        console.log(`Retrying starter image (reset) in ${seconds}s, #${attempt} (Status: ${status})`);
+      })
+        .then(payload => {
+          const msg = session.chatHistory.find(m => m.id === visualId);
+          if (msg) {
+            msg.imageUrl = payload.imageUrl;
+            msg.thoughtLength = payload.thoughtLength;
+          }
+          io.to(session.id).emit('sceneVisualized', { id: visualId, imageUrl: payload.imageUrl!, thoughtLength: payload.thoughtLength });
+        })
+        .catch(err => console.error("Failed to generate starter image on reset:", err));
+    }
+    broadcastHistory(session);
+    broadcastState(session);
+    scheduleActiveBots(session, BOT_RESET_DELAY_MS);
+  };
+
+  const checkAndResolveTurn = async (session: GameSession) => {
+    if (session.gameState.isResolving) return;
+    const activePlayers = Object.values(session.gameState.players);
+    if (activePlayers.length === 0) return;
+    const allLockedIn = activePlayers.every((player) => player.isLockedIn);
+    if (!allLockedIn) return;
+
+    session.gameState.isResolving = true;
+    session.manualRetryRequested = false;
+    broadcastState(session);
+    console.log(`[SESSION ${session.id}] STARTING TURN RESOLUTION (Turn ${session.gameState.turnNumber})`);
+    emitTurnProgress(session, { phase: 'waiting', waitingText: 'Waiting for model...', thoughtLog:[], responseText: '' });
+    addChatMessage(session, { type: 'system', text: 'All players locked in. Resolving turn...' });
+
+    const actions = activePlayers.map((player) => ({ playerId: player.id, playerName: player.name, action: player.lastAction?.text || 'Wait', sketch: player.lastAction?.sketch }));
+    addChatMessage(session, { type: 'prompt', text: actions.map((entry) => `${entry.playerName}: ${entry.action}`).join('\n'), actionEntries: actions.map((entry) => ({ playerId: entry.playerId, playerName: entry.playerName, text: entry.action, sketch: entry.sketch })) });
+
+    const activeLevelPackage = getActiveLevelPackage(session);
+    let streamedThoughtLog: string[] =[];
+    
+    // Create a local logger function that emits immediately to this session
+    const logEvent = (event: string, data?: any) => {
+      const logEntry = { timestamp: Date.now(), event, data };
+      io.to(session.id).emit('serverLog', logEntry);
+      // Also log to console for Playwright capture
+      if (event.includes('error') || event.includes('retry') || event.includes('abort')) {
+        console.log(`[SESSION ${session.id}] ${event}:`, JSON.stringify(data));
+      }
+    };
+
+    logEvent('turn_resolution_start', { turnNumber: session.gameState.turnNumber, actionCount: actions.length, timestamp: Date.now() });
+
+    session.turnResolutionAbortController = new AbortController();
+
+    try {
+      const { newState, narrative, cinematicImagePrompt, npcDialogues, debug } = await resolveTurn({
+        currentState: session.gameState, 
+        levelPackage: activeLevelPackage, 
+        globalSystemPrompt, 
+        semanticPhysicsPrompt,
+        inventorPrompt,
+        actions, 
+        modelName: session.modelName,
+        externalAbortSignal: session.turnResolutionAbortController.signal,
+        onLog: logEvent, 
+        onRetry: (seconds, attempt, status) => {
+          const retryText = `Waiting for model... Retry in ${seconds}s (#${attempt}, Status: ${status})`;
+          emitTurnProgress(session, { phase: 'waiting', waitingText: retryText, thoughtLog: streamedThoughtLog, responseText: '', latestThought: streamedThoughtLog[streamedThoughtLog.length - 1] });
+          addChatMessage(session, { type: 'retry', text: `Retrying turn resolution in ${seconds}s, #${attempt} (Status: ${status})` });
+        },
+        onThoughtUpdate: (thoughtLog) => {
+          streamedThoughtLog = thoughtLog;
+          emitTurnProgress(session, { phase: 'thinking', waitingText: 'Waiting for model...', latestThought: thoughtLog[thoughtLog.length - 1], thoughtLog, responseText: '' });
+        },
+        onTextUpdate: (text) => {
+          let partialNarrative = '';
+          
+          try {
+            const nKey = '"narrative"';
+            const idx = text.indexOf(nKey);
+            if (idx !== -1) {
+              const colonIdx = text.indexOf(':', idx + nKey.length);
+              if (colonIdx !== -1) {
+                const quoteIdx = text.indexOf('"', colonIdx);
+                if (quoteIdx !== -1) {
+                  let endIdx = text.length;
+                  for (let i = quoteIdx + 1; i < text.length; i++) {
+                    if (text[i] === '"' && text[i-1] !== '\\') {
+                      endIdx = i;
+                      break;
+                    }
+                  }
+                  partialNarrative = text.substring(quoteIdx + 1, endIdx).replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                }
+              }
+            }
+          } catch (e) {
+            // Failsafe catch for streaming extraction bounds errors
+          }
+
+          emitTurnProgress(session, { 
+            phase: 'responding', 
+            waitingText: 'Generating response...', 
+            latestThought: streamedThoughtLog[streamedThoughtLog.length - 1], 
+            thoughtLog: streamedThoughtLog, 
+            responseText: partialNarrative || 'Writing narrative...' 
+          });
+        }
+      });
+      session.gameState = { ...newState, debug };
+      Object.values(session.gameState.players).forEach((player) => { player.isLockedIn = false; player.lastAction = undefined; });
+      console.log(`[SESSION ${session.id}] TURN RESOLVED SUCCESSFULLY`);
+      logEvent('turn_resolution_success', { newTurnNumber: session.gameState.turnNumber });
+      
+      // Log to conversation file
+      if (streamedThoughtLog.length > 0) {
+        conversationLogger.logModelThinking(session.id, streamedThoughtLog);
+      }
+      conversationLogger.logTurnResolution(session.id, session.gameState.turnNumber, actions.length, true);
+      addChatMessage(session, { type: 'narrative', text: narrative });
+
+      const shouldGenImages = session.settings.onlyImages || session.settings.shouldGenerateImages;
+      if (cinematicImagePrompt && shouldGenImages) {
+        const visualId = makeMessageId();
+        const imageMsg: ChatMessage = { id: visualId, type: 'image', text: cinematicImagePrompt, timestamp: Date.now(), npcDialogues: npcDialogues };
+        session.chatHistory.push(imageMsg);
+        if (session.chatHistory.length > 200) session.chatHistory.shift();
+        io.to(session.id).emit('chatMessage', imageMsg);
+
+        logEvent('image_generation_start', { visualId, promptLength: cinematicImagePrompt.length });
+
+        emitTurnProgress(session, { 
+          phase: 'responding', 
+          waitingText: 'Generating image...', 
+          thoughtLog: streamedThoughtLog, 
+          responseText: narrative, 
+          latestThought: streamedThoughtLog[streamedThoughtLog.length - 1],
+          imageProgress: 0 
+        });
+
+        try {
+          // Create abort controller for this image generation so it can be cancelled
+          session.imageGenerationAbortController = new AbortController();
+          const messagePayload = await generateSceneImage(cinematicImagePrompt, (progress) => {
+            emitTurnProgress(session, { 
+              phase: 'responding', 
+              waitingText: 'Generating image...', 
+              thoughtLog: streamedThoughtLog, 
+              responseText: narrative, 
+              latestThought: streamedThoughtLog[streamedThoughtLog.length - 1],
+              imageProgress: progress 
+            });
+          }, (seconds, attempt, status) => {
+            const retryText = `Generating image... Retry in ${seconds}s (#${attempt}, Status: ${status})`;
+            logEvent('image_generation_retry', { attempt, seconds, status });
+            emitTurnProgress(session, { 
+              phase: 'responding', 
+              waitingText: retryText, 
+              thoughtLog: streamedThoughtLog, 
+              responseText: narrative, 
+              latestThought: streamedThoughtLog[streamedThoughtLog.length - 1],
+              imageProgress: 0 
+            });
+            addChatMessage(session, { type: 'retry', text: `Retrying image in ${seconds}s, #${attempt} (Status: ${status})` });
+          }, session.imageGenerationAbortController.signal);
+          
+          logEvent('image_generation_success', { visualId });
+          session.imageGenerationAbortController = null;
+          const msgToUpdate = session.chatHistory.find(m => m.id === visualId);
+          if (msgToUpdate) {
+            msgToUpdate.imageUrl = messagePayload.imageUrl;
+            msgToUpdate.thoughtLength = messagePayload.thoughtLength; 
+          }
+          io.to(session.id).emit('sceneVisualized', { id: visualId, imageUrl: messagePayload.imageUrl!, thoughtLength: messagePayload.thoughtLength, npcDialogues });
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error(`[SESSION ${session.id}] Image generation failed:`, errorMsg);
+          logEvent('image_generation_error', { error: errorMsg });
+          
+          // Log error to conversation file
+          conversationLogger.logImageGeneration(session.id, 'error', { error: errorMsg });
+          
+          session.imageGenerationAbortController = null;
+          addChatMessage(session, { type: 'system', text: 'Visual generation failed for this turn.' });
+        }
+      }
+      if (session.gameState.levelComplete) {
+        logEvent('level_complete', { levelId: session.gameState.levelId, turnNumber: session.gameState.turnNumber });
+        
+        // Log level complete to conversation file
+        conversationLogger.logLevelComplete(session.id, session.gameState.levelId, session.gameState.turnNumber);
+        
+        io.to(session.id).emit('levelComplete', { levelId: session.gameState.levelId, levelTitle: session.gameState.levelTitle, turnNumber: session.gameState.turnNumber });
+      } else {
+        scheduleActiveBots(session, BOT_NEXT_TURN_DELAY_MS);
+      }
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg === 'MANUAL_RETRY_REQUESTED') {
+        console.log(`[SESSION ${session.id}] Manual turn retry requested`);
+        logEvent('turn_resolution_manual_retry_requested', {});
+        session.manualRetryRequested = true;
+        session.gameState = { ...session.gameState, isResolving: false };
+      } else {
+      console.error(`[SESSION ${session.id}] Turn resolution FATAL error:`, errorMsg);
+      logEvent('turn_resolution_fatal_error', { errorMessage: errorMsg, errorName: error.name });
+      
+      // Log fatal error to conversation file
+      conversationLogger.logError(session.id, 'Turn Resolution Failed', { error: errorMsg });
+      conversationLogger.logTurnResolution(session.id, session.gameState.turnNumber, actions.length, false, errorMsg);
+      session.gameState = { ...session.gameState, isResolving: false };
+      Object.values(session.gameState.players).forEach((player) => { player.isLockedIn = false; player.lastAction = undefined; });
+      addChatMessage(session, { type: 'narrative', text: `SYSTEM ERROR: ${errorMsg}` });
+      scheduleActiveBots(session, BOT_NEXT_TURN_DELAY_MS * 2);
+      }
+    } finally {
+      session.turnResolutionAbortController = null;
+      if (session.manualRetryRequested) {
+        emitTurnProgress(session, { phase: 'waiting', waitingText: 'Retrying model...', thoughtLog:[], responseText: '' });
+      } else {
+        emitTurnProgress(session, idleTurnProgress);
+      }
+      broadcastState(session);
+      if (session.manualRetryRequested) {
+        session.manualRetryRequested = false;
+        setTimeout(() => {
+          void checkAndResolveTurn(session);
+        }, 0);
+      }
+    }
+  };
+
+  app.get('/api/levels', async (_req, res) => { res.json(await listLevelSummaries()); });
+  app.get('/api/levels/:levelId', async (req, res) => {
+    try {
+      const levelPackage = await loadLevelPackage(req.params.levelId);
+      res.json(levelPackageToEditorDraft(levelPackage));
+    } catch { res.status(404).json({ error: 'Level not found.' }); }
+  });
+
+  io.on('connection', (socket) => {
+    console.log(`[SOCKET] Client connected: ${socket.id}`);
+
+    socket.on('join', async (payload: JoinPayload) => {
+      console.log(`[SOCKET ${socket.id}] Join request: mode=${payload.mode}, sessionId=${payload.sessionId}, levelId=${payload.levelId}`);
+      
+      const session = await ensureSession({ sessionId: payload.sessionId, mode: payload.mode, levelId: payload.levelId, modelName: payload.modelName || 'gemini-3.1-pro-preview' });
+      socket.join(session.id);
+      if (!session.gameState.players[socket.id]) {
+        const color = PLAYER_COLORS[Object.keys(session.gameState.players).length % PLAYER_COLORS.length];
+        const activeLevelPackage = getActiveLevelPackage(session);
+        const inventory = buildStarterInventory(activeLevelPackage);
+        const playerName = payload.name || `Traveler ${socket.id.substring(0, 4)}`;
+        session.gameState.players[socket.id] = { id: socket.id, name: playerName, inventory, equipped: buildEquippedState(inventory), isLockedIn: false, color };
+        console.log(`[SOCKET ${socket.id}] Player added: ${playerName}`);
+        addChatMessage(session, { type: 'system', text: `${playerName} has joined the session.` });
+      }
+      socket.emit('gameState', session.gameState);
+      socket.emit('narrativeLog', session.chatHistory);
+      socket.emit('turnProgress', idleTurnProgress);
+      socket.emit('botProgress', getBotController(session, socket.id).progress);
+      socket.emit('sessionSettings', session.settings);
+      broadcastState(session);
+    });
+
+    socket.on('disconnect', () => {
+      console.log(`[SOCKET] Client disconnected: ${socket.id}`);
+    });
+
+    socket.on('updateSessionSettings', (payload) => {
+      const session = sessions.get(payload.sessionId);
+      if (session) {
+        session.settings = payload.settings;
+        io.to(session.id).emit('sessionSettings', session.settings);
+      }
+    });
+
+    socket.on('moveItemToContainer', (itemId: string, containerId: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(player.inventory);
+      const entry = lookup.get(itemId);
+      if (!entry) return;
+
+      // Remove from old location
+      entry.parentList.splice(entry.index, 1);
+      const targetItem = entry.item;
+
+      if (containerId === 'root-inventory') {
+        player.inventory.push(targetItem);
+      } else {
+        const containerEntry = lookup.get(containerId);
+        if (containerEntry && (containerEntry.item.tags?.includes('container') || containerEntry.item.tags?.includes('assembly'))) {
+          const container = containerEntry.item;
+          if (!container.contents) container.contents =[];
+          if (container.maxSlots && container.contents.length >= container.maxSlots) {
+            player.inventory.push(targetItem); // Revert if full
+          } else {
+            container.contents.push(targetItem);
+          }
+        } else if (containerEntry) {
+          // Rearrange: insert before the target item
+          containerEntry.parentList.splice(containerEntry.index, 0, targetItem);
+        } else {
+          player.inventory.push(targetItem);
+        }
+      }
+
+      broadcastState(session);
+    });
+
+    socket.on('removeItemFromContainer', (itemId: string, containerId: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(player.inventory);
+      const entry = lookup.get(itemId);
+      if (entry) {
+        entry.parentList.splice(entry.index, 1);
+        player.inventory.push(entry.item);
+        broadcastState(session);
+      }
+    });
+
+    socket.on('dropItem', (itemId: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(Object.values(session.gameState.players).flatMap(p => p.inventory));
+      const entry = lookup.get(itemId);
+      if (entry) {
+        entry.parentList.splice(entry.index, 1);
+
+        addChatMessage(session, { 
+          type: 'narrative', 
+          text: `${player.name} dropped the ${entry.item.name}.` 
+        });
+        broadcastState(session);
+      }
+    });
+
+
+    socket.on('pickupItem', (itemId: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(session.gameState.players['groundLevel'].inventory);
+      const entry = lookup.get(itemId);
+      if (entry) {
+        console.log(`[SOCKET ${socket.id}] Pickup: ${entry.item.name}`);
+        entry.parentList.splice(entry.index, 1);
+        player.inventory.push(entry.item);
+
+        addChatMessage(session, { 
+          type: 'narrative', 
+          text: `${player.name} picked up the ${entry.item.name}.` 
+        });
+        broadcastState(session);
+      }
+    });
+
+    socket.on('giveItem', (itemId: string, targetPlayerId: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      const targetPlayer = session.gameState.players[targetPlayerId];
+      if (!player || !targetPlayer) return;
+
+      const lookup = getInventoryLookup(player.inventory);
+      const entry = lookup.get(itemId);
+      if (entry) {
+        console.log(`[SOCKET ${socket.id}] Give: ${entry.item.name} → ${targetPlayer.name}`);
+        entry.parentList.splice(entry.index, 1);
+        targetPlayer.inventory.push(entry.item);
+        
+        addChatMessage(session, { 
+          type: 'narrative', 
+          text: `${player.name} gave ${entry.item.name} to ${targetPlayer.name}.` 
+        });
+        broadcastState(session);
+      }
+    });
+
+    socket.on('takeAllFromContainer', (containerId: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(player.inventory);
+      const entry = lookup.get(containerId);
+      if (entry && entry.item.contents && entry.item.contents.length > 0) {
+        const items = entry.item.contents;
+        entry.item.contents =[];
+        player.inventory.push(...items);
+        
+        addChatMessage(session, { 
+          type: 'narrative', 
+          text: `${player.name} took everything out of the ${entry.item.name}.` 
+        });
+        broadcastState(session);
+      }
+    });
+
+    socket.on('splitStack', (itemId: string, amount: number) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(player.inventory);
+      const entry = lookup.get(itemId);
+      if (entry && entry.item.measurements?.count) {
+        const total = parseInt(entry.item.measurements.count);
+        if (amount > 0 && amount < total) {
+          const newItem = JSON.parse(JSON.stringify(entry.item));
+          newItem.id = makeItemId(newItem.name);
+          newItem.measurements.count = String(amount);
+          entry.item.measurements.count = String(total - amount);
+          entry.parentList.splice(entry.index + 1, 0, newItem);
+          broadcastState(session);
+        }
+      }
+    });
+
+    socket.on('toggleItemState', (itemId: string, toggleKey: string) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+
+      const lookup = getInventoryLookup(player.inventory);
+      const entry = lookup.get(itemId);
+      if (entry) {
+        if (!entry.item.toggles) entry.item.toggles = {};
+        entry.item.toggles[toggleKey] = !entry.item.toggles[toggleKey];
+        
+        const stateStr = entry.item.toggles[toggleKey] ? 'on' : 'off';
+        addChatMessage(session, { 
+          type: 'narrative', 
+          text: `${player.name} toggled ${toggleKey} ${stateStr} on the ${entry.item.name}.` 
+        });
+        broadcastState(session);
+      }
+    });
+
+    socket.on('lockAction', (action) => {
+      const session = getSessionForSocket(socket.id);
+      if (!session || session.gameState.isResolving) return;
+      const player = session.gameState.players[socket.id];
+      if (!player) return;
+      
+      const actionText = typeof action === 'string' ? action : action.text;
+      console.log(`[SOCKET ${socket.id}] Lock action: "${actionText.substring(0, 60)}..."`);
+      
+      if (getBotController(session, socket.id).active) {
+        console.log(`[SOCKET ${socket.id}] Disabling bot (manual control taken)`);
+        setBotInactive(session, socket.id, 'Bot stopped. Manual control restored.');
+        addChatMessage(session, { type: 'system', text: `${player.name} took back manual control from the bot.` });
+      }
+      lockPlayerAction(session, socket.id, typeof action === 'string' ? { text: action } : action);
+    });
+
+    socket.on('resetSession', () => {
+      const session = getSessionForSocket(socket.id);
+      if (session) {
+        console.log(`[SOCKET ${socket.id}] Reset session requested`);
+        resetSessionState(session);
+      }
+    });
+
+    socket.on('cancelImageGeneration', () => {
+      const session = getSessionForSocket(socket.id);
+      if (session && session.imageGenerationAbortController) {
+        console.log(`[SOCKET ${socket.id}] Cancel image generation`);
+        session.imageGenerationAbortController.abort();
+        session.imageGenerationAbortController = null;
+      }
+    });
+
+    socket.on('forceRetryTurn', () => {
+      const session = getSessionForSocket(socket.id);
+      if (session && session.turnResolutionAbortController) {
+        console.log(`[SOCKET ${socket.id}] Force retry turn`);
+        session.turnResolutionAbortController.abort();
+        emitTurnProgress(session, { phase: 'waiting', waitingText: 'Retrying model...', thoughtLog:[], responseText: '' });
+        const player = session.gameState.players[socket.id];
+        if (player) {
+          addChatMessage(session, { type: 'system', text: `${player.name} forced a manual turn retry.` });
+        }
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log(`[SOCKET] Client disconnected: ${socket.id}`);
+      const session = getSessionForSocket(socket.id);
+      if (!session) return;
+      const player = session.gameState.players[socket.id];
+      if (player) {
+        setBotInactive(session, socket.id);
+        addChatMessage(session, { type: 'system', text: `${player.name} has left the session.` });
+        delete session.gameState.players[socket.id];
+      }
+      if (Object.keys(session.gameState.players).length === 0) sessions.delete(session.id);
+      else { broadcastState(session); checkAndResolveTurn(session); }
+    });
+  });
+
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(__dirname);
+    app.use(express.static(distPath));
+    app.use((_req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
+  }
+  httpServer.listen(PORT, '0.0.0.0', () => { console.log(`Server running on http://localhost:${PORT}`); });
+}
+startServer();
+```
+
+levels/the-chasm/system-prompt.md
+```md
+This level is a grounded semantic-physics puzzle.
+
+- The player should solve the chasm through clever physical invention, exploration, and reuse of believable materials.
+- <SECRET>Keep the hidden pond and trapdoor objective meaningful.</SECRET>
+- User may not beat the chilled pool using magic. Potions and spells are not effective here.
+- <SECRET>Make sure to progress time enough each turn that it becomes midnight and 10 mins after midnight for a considerable amount of time, so user can see Sprite's messages.</SECRET>
+```
+
+levels/the-chasm/user-prompt.md
+```md
+
+```
+
+levels/gokart-bot/system-prompt.md
+```md
+
+```
+
+levels/freeplay-forest/system-prompt.md
+```md
+This mode is an invention sandbox.
+
+Authorial intent:
+- Be playful, generous, and surprising while still respecting semantic physics.
+- Let the environment procedurally expand as players wander and experiment.
+- Keep continuity strong once new world facts are established.
+```
+
+levels/crafting-battle/system-prompt.md
+```md
+This level is a combat-and-invention gauntlet.
+
+Authorial intent:
+- The player should keep building, reusing, salvaging, and adapting gear between rounds.
+- Let smart engineering, traps, improvised armor, and arena hacks matter.
+- Preserve escalation. Later opponents should feel stronger and force new invention patterns.
+```
+
+levels/crafting-battle/user-prompt.md
+```md
+The player should feel like an inventor-warrior adapting their loadout between waves rather than simply receiving perfect weapons.
+```

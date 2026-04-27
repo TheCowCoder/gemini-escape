@@ -1,0 +1,34 @@
+{
+  "id": "freeplay-forest",
+  "title": "Freeplay Forest",
+  "startingText": "starting-text.md",
+  "levelDescription": "levelDescription.md",
+  "levelGoal": "Invent for the fun of it. Test weird ideas, build machines, and see what happens.",
+  "npcDefinitions": {
+    "Friendly Wildlife": "npcs/wildlife.md"
+  },
+  "startingInventory": [
+    {
+      "id": "sandals",
+      "name": "Worn Sandals",
+      "emoji": "🥾",
+      "description": "Basic footwear.",
+      "descriptionMd": "Basic **worn sandals** that protect your feet from splinters and sharp rock.",
+      "semanticNotes": "Wearable, light, scuffed.",
+      "color": "#8B4513",
+      "slot": "feet",
+      "tags": ["starter", "wearable"]
+    },
+    {
+      "id": "tunic",
+      "name": "Linen Tunic",
+      "emoji": "🧥",
+      "description": "A plain shirt.",
+      "descriptionMd": "A plain **linen tunic** suited for wandering, tinkering, and getting dirty.",
+      "semanticNotes": "Wearable cloth, plain, easily torn.",
+      "color": "#D2B48C",
+      "slot": "body",
+      "tags": ["starter", "wearable"]
+    }
+  ]
+}

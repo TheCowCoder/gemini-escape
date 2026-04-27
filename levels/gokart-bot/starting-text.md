@@ -1,0 +1,3 @@
+You are standing in a sunny patch of pavement, just outside an opened, 3-room garage. You peer into the room furthest from you and catch a glimpse of a humanoid robot, working furiously at superhuman speed to fabricate a shark-powered mobile with a live shark. It just might go very fast.
+
+You focus on the task: Build a gokart that will beat the bot in a track of curves, straightaways, and surprises. Your materials: You eye a table with a large glass rectangular box. Taller than wide. What does it do? Interface the control panel to spawn any object or tool you need to build. There are restrictions on spawning already built inventions. Ask for anything you want. Have a blast.

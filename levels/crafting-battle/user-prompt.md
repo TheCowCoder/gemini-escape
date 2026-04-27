@@ -1,0 +1,1 @@
+The player should feel like an inventor-warrior adapting their loadout between waves rather than simply receiving perfect weapons.

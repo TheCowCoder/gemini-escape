@@ -1,0 +1,1 @@
+You are standing in a sun-dappled clearing at the edge of a quiet forest. The air smells of pine and loose soil. The space around you is wide open.
